@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node -e \"const p = require\\('./node_modules/@supabase/postgrest-js/package.json'\\); console.log\\(p.version\\)\")",
+      "Bash(node -e \"console.log\\(require\\('./node_modules/@supabase/ssr/package.json'\\).version\\)\")",
+      "Bash(node -e \"console.log\\(require\\('./node_modules/@supabase/ssr/package.json'\\).version\\)\" \"c:\\\\Users\\\\thoma\\\\Desktop\\\\Projet Perso\\\\LePlateauC\\\\node_modules\\\\@supabase\\\\ssr\\\\package.json\")",
+      "Bash(del _type_test.ts)",
+      "Bash(node -e \"console.log\\(require\\('./node_modules/next/package.json'\\).version\\)\")"
+    ],
+    "additionalDirectories": [
+      "c:\\Users\\thoma\\.claude\\projects\\c--Users-thoma-Desktop-Projet-Perso-LePlateauC\\memory"
+    ]
+  }
+}
