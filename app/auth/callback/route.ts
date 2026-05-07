@@ -5,24 +5,13 @@ import { NextRequest, NextResponse } from 'next/server'
 export const dynamic = 'force-dynamic'
 
 export async function GET(request: NextRequest) {
-  console.log('[callback] Full URL:', request.url)
-  console.log('[callback] All params:', Object.fromEntries(new URL(request.url).searchParams))
-  console.log('[callback] Hash would not be visible server-side')
-
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
   const { searchParams } = new URL(request.url)
-  // log every param individually
-  searchParams.forEach((value, key) => {
-    console.log(`[callback] param: ${key} = ${value}`)
-  })
-
   const code = searchParams.get('code')
-  console.log('[callback] code:', code)
-
   const next = searchParams.get('next') ?? '/dashboard/office'
 
   if (!code) {
-    console.error('[auth/callback] No code in URL')
-    return NextResponse.redirect('http://localhost:3000/auth/login?error=missing_code')
+    return NextResponse.redirect(`${appUrl}/auth/login?error=missing_code`)
   }
 
   const cookieStore = cookies()
@@ -44,9 +33,8 @@ export async function GET(request: NextRequest) {
   const { error } = await supabase.auth.exchangeCodeForSession(code)
 
   if (error) {
-    console.error('[auth/callback] exchangeCodeForSession error:', error.message)
-    return NextResponse.redirect(`http://localhost:3000/auth/login?error=${error.message}`)
+    return NextResponse.redirect(`${appUrl}/auth/login?error=${error.message}`)
   }
 
-  return NextResponse.redirect(`http://localhost:3000${next}`)
+  return NextResponse.redirect(`${appUrl}${next}`)
 }

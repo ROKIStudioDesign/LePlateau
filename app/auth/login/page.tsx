@@ -9,15 +9,14 @@ export default function LoginPage() {
   async function handleMicrosoftLogin() {
     setLoading(true)
     const supabase = createClient()
-    console.log('[login] Starting OAuth with redirectTo:', 'http://localhost:3000/auth/callback')
-    const { data, error } = await supabase.auth.signInWithOAuth({
+    const redirectTo = `${process.env.NEXT_PUBLIC_APP_URL}/auth/callback`
+    const { error } = await supabase.auth.signInWithOAuth({
       provider: 'azure',
       options: {
-        redirectTo: 'http://localhost:3000/auth/callback',
+        redirectTo,
         scopes: 'openid profile email offline_access User.Read Presence.Read',
       },
     })
-    console.log('[login] signInWithOAuth result:', { data, error })
     if (error) {
       console.error('[login] signInWithOAuth error:', error.message)
       setLoading(false)
