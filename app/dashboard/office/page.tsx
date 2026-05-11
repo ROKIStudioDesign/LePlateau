@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
-import type { Profile, OfficeMap, Zone } from "@/lib/types/database";
+import type { Profile, OfficeMap, Zone, WorkScheduleStatus } from "@/lib/types/database";
 import { useOfficeStore } from "@/lib/store/office";
 import { usePresence } from "@/hooks/use-presence";
 import { useMSPresence } from "@/hooks/use-ms-presence";
@@ -14,7 +14,7 @@ import { ZoneDetailPanel } from "@/components/canvas/zone-detail-panel";
 import { KnockToastContainer } from "@/components/canvas/knock-toast";
 import { CanvasErrorBoundary } from "@/components/canvas/error-boundary";
 import OfficeCanvasWrapper from "@/components/canvas/office-canvas-wrapper";
-import { Map } from "lucide-react";
+import { Map as MapIcon } from "lucide-react";
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Inner component — all hooks live here (rules of hooks require unconditional calls)
@@ -23,9 +23,11 @@ import { Map } from "lucide-react";
 function OfficeInner({
   profile,
   officeMap,
+  workSchedules,
 }: {
   profile: Profile;
   officeMap: OfficeMap;
+  workSchedules: Map<string, WorkScheduleStatus>;
 }) {
   const supabase = createClient();
   const { zones, currentZoneId, setCurrentZone } = useOfficeStore();
@@ -102,6 +104,7 @@ function OfficeInner({
               onAvatarMove={handleAvatarMove}
               onAvatarClick={handleAvatarClick}
               speakingUserIds={speakingUserIds}
+              workSchedules={workSchedules}
             />
           </CanvasErrorBoundary>
 
@@ -142,6 +145,7 @@ export default function OfficePage() {
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [profile, setProfile] = useState<Profile | null>(null);
   const [officeMap, setOfficeMap] = useState<OfficeMap | null>(null);
+  const [workSchedules, setWorkSchedules] = useState<Map<string, WorkScheduleStatus>>(new Map());
 
   const { setZones } = useOfficeStore();
 
@@ -186,6 +190,21 @@ export default function OfficePage() {
         .order("created_at");
 
       setZones(zonesData ?? []);
+
+      // Fetch today's work schedules for all org members
+      const today = new Date().toISOString().slice(0, 10);
+      const { data: schedulesData } = await supabase
+        .from("work_schedules")
+        .select("user_id, status")
+        .eq("organization_id", profileData.organization_id)
+        .eq("date", today);
+
+      const schedulesMap = new Map<string, WorkScheduleStatus>();
+      for (const s of schedulesData ?? []) {
+        schedulesMap.set(s.user_id, s.status as WorkScheduleStatus);
+      }
+      setWorkSchedules(schedulesMap);
+
       setLoadState("ready");
     }
 
@@ -209,7 +228,7 @@ export default function OfficePage() {
   if (loadState === "no-org") {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-4 text-center px-6">
-        <Map size={40} className="text-[#64748B]" />
+        <MapIcon size={40} className="text-[#64748B]" />
         <div>
           <p className="text-lg font-semibold text-[#F1F5F9]">
             Aucune organisation trouvée
@@ -231,7 +250,7 @@ export default function OfficePage() {
   if (loadState === "no-map") {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-4 text-center px-6">
-        <Map size={40} className="text-[#64748B]" />
+        <MapIcon size={40} className="text-[#64748B]" />
         <div>
           <p className="text-lg font-semibold text-[#F1F5F9]">
             Bureau non configuré
@@ -252,5 +271,5 @@ export default function OfficePage() {
   }
 
   // loadState === "ready"
-  return <OfficeInner profile={profile!} officeMap={officeMap!} />;
+  return <OfficeInner profile={profile!} officeMap={officeMap!} workSchedules={workSchedules} />;
 }

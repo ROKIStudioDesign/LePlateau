@@ -2,6 +2,7 @@ export type PlanType = "free" | "pro" | "enterprise";
 export type UserRole = "admin" | "member";
 export type ZoneType = "open_space" | "meeting_room" | "focus" | "social" | "break";
 export type MapTheme = "modern" | "zen" | "startup";
+export type WorkScheduleStatus = "office" | "remote" | "vacation" | "sick" | "absent" | "rtt";
 export type TeamsStatus =
   | "Available"
   | "Busy"
@@ -81,6 +82,29 @@ export type LiveKitRoom = {
   created_at: string;
 };
 
+export type WorkSchedule = {
+  id: string;
+  user_id: string;
+  organization_id: string;
+  date: string;
+  status: WorkScheduleStatus;
+  note: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ScheduleTemplate = {
+  id: string;
+  user_id: string;
+  organization_id: string;
+  mon: WorkScheduleStatus;
+  tue: WorkScheduleStatus;
+  wed: WorkScheduleStatus;
+  thu: WorkScheduleStatus;
+  fri: WorkScheduleStatus;
+  created_at: string;
+};
+
 type Relationship = {
   foreignKeyName: string;
   columns: string[];
@@ -129,6 +153,16 @@ export type Database = {
         Omit<LiveKitRoom, "id" | "created_at">,
         Partial<Omit<LiveKitRoom, "id" | "created_at">>
       >;
+      work_schedules: TableDef<
+        WorkSchedule,
+        Omit<WorkSchedule, "id" | "created_at" | "updated_at">,
+        Partial<Omit<WorkSchedule, "id" | "created_at">>
+      >;
+      schedule_templates: TableDef<
+        ScheduleTemplate,
+        Omit<ScheduleTemplate, "id" | "created_at">,
+        Partial<Omit<ScheduleTemplate, "id" | "created_at">>
+      >;
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;
@@ -137,6 +171,7 @@ export type Database = {
       user_role: UserRole;
       zone_type: ZoneType;
       map_theme: MapTheme;
+      work_schedule_status: WorkScheduleStatus;
     };
     CompositeTypes: Record<string, never>;
   };

@@ -4,7 +4,7 @@ import * as React from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import * as Tooltip from '@radix-ui/react-tooltip'
-import { Map, Users, Settings, Bell, LogOut } from 'lucide-react'
+import { Map, Users, Settings, Bell, LogOut, CalendarDays } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Avatar } from '@/components/ui/avatar'
 import { useOfficeStore } from '@/lib/store/office'
@@ -21,6 +21,7 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { label: 'Bureau', href: '/dashboard/office', icon: Map },
+  { label: 'Planning', href: '/dashboard/schedule', icon: CalendarDays },
   { label: 'Membres', href: '/dashboard/settings/members', icon: Users },
   { label: 'Paramètres', href: '/dashboard/settings/organization', icon: Settings },
 ]

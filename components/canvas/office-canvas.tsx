@@ -13,7 +13,7 @@ import Konva from 'konva';
 import { useOfficeStore } from '@/lib/store/office';
 import { ZONE_ICONS, ZONE_ACCENT_COLORS } from '@/lib/canvas/layouts';
 import { cn, debounce } from '@/lib/utils';
-import type { Zone, AvatarPosition, Profile } from '@/lib/types/database';
+import type { Zone, AvatarPosition, Profile, WorkScheduleStatus } from '@/lib/types/database';
 
 // ---------------------------------------------------------------------------
 // Public prop types
@@ -27,6 +27,7 @@ export interface OfficeCanvasProps {
   onAvatarMove: (x: number, y: number) => void;
   onAvatarClick?: (userId: string) => void;
   speakingUserIds: Set<string>;
+  workSchedules?: Map<string, WorkScheduleStatus>;
 }
 
 // ---------------------------------------------------------------------------
@@ -217,11 +218,20 @@ const ZoneShape = memo(function ZoneShape({
 // AvatarCircle
 // ---------------------------------------------------------------------------
 
+const SCHEDULE_BADGE: Partial<Record<WorkScheduleStatus, string>> = {
+  remote:   '🏠',
+  vacation: '🌴',
+  sick:     '🤒',
+  absent:   '❌',
+  rtt:      '🛌',
+};
+
 interface AvatarCircleProps {
   position: AvatarPosition;
   profile: Profile | undefined;
   isCurrent: boolean;
   isSpeaking: boolean;
+  scheduleStatus?: WorkScheduleStatus;
   onDragEnd: (x: number, y: number) => void;
   onClick?: () => void;
 }
@@ -231,6 +241,7 @@ const AvatarCircle = memo(function AvatarCircle({
   profile,
   isCurrent,
   isSpeaking,
+  scheduleStatus,
   onDragEnd,
   onClick,
 }: AvatarCircleProps) {
@@ -244,6 +255,10 @@ const AvatarCircle = memo(function AvatarCircle({
   const avatarColor = hashColor(position.user_id);
   const initials = profile ? getInitials(profile.display_name) : '?';
   const ringColor = statusColor(profile?.teams_status ?? null);
+  const scheduleBadge = scheduleStatus ? SCHEDULE_BADGE[scheduleStatus] : null;
+  const avatarOpacity = !scheduleStatus || scheduleStatus === 'office' ? 1
+    : scheduleStatus === 'remote' ? 0.85
+    : 0.45;
 
   // Position interpolation tween for remote users.
   useEffect(() => {
@@ -334,6 +349,7 @@ const AvatarCircle = memo(function AvatarCircle({
       ref={groupRef}
       x={position.x}
       y={position.y}
+      opacity={avatarOpacity}
       draggable={isCurrent}
       onDragEnd={isCurrent ? handleDragEnd : undefined}
       onClick={!isCurrent ? onClick : undefined}
@@ -384,6 +400,16 @@ const AvatarCircle = memo(function AvatarCircle({
           fill="#22D3EE"
           stroke="#0A0A0F"
           strokeWidth={1.5}
+          listening={false}
+        />
+      )}
+      {/* Schedule status badge */}
+      {scheduleBadge && (
+        <Text
+          text={scheduleBadge}
+          fontSize={13}
+          x={8}
+          y={8}
           listening={false}
         />
       )}
@@ -459,6 +485,7 @@ export default function OfficeCanvas({
   onAvatarMove,
   onAvatarClick,
   speakingUserIds,
+  workSchedules,
 }: OfficeCanvasProps) {
   const store = useOfficeStore();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -561,6 +588,7 @@ export default function OfficeCanvas({
               profile={store.profiles.get(pos.user_id)}
               isCurrent={pos.user_id === currentUserId}
               isSpeaking={speakingUserIds.has(pos.user_id)}
+              scheduleStatus={workSchedules?.get(pos.user_id)}
               onDragEnd={
                 pos.user_id === currentUserId
                   ? handleAvatarDrop
