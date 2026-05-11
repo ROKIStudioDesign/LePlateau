@@ -35,21 +35,22 @@ export async function updateSession(request: NextRequest) {
     }
   );
 
+  // "/" and "/auth/*" are always public — never intercept them.
+  const isProtected =
+    pathname.startsWith("/dashboard") || pathname.startsWith("/onboarding");
+
+  if (!isProtected) {
+    return supabaseResponse;
+  }
+
+  // Only call getUser for routes that actually need auth protection.
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const isPublic = pathname === "/" || pathname.startsWith("/auth/login");
-
-  if (!user && !isPublic) {
+  if (!user) {
     const url = request.nextUrl.clone();
     url.pathname = "/auth/login";
-    return NextResponse.redirect(url);
-  }
-
-  if (user && pathname === "/") {
-    const url = request.nextUrl.clone();
-    url.pathname = "/dashboard/office";
     return NextResponse.redirect(url);
   }
 
