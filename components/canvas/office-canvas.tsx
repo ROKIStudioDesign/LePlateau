@@ -13,7 +13,7 @@ import Konva from 'konva';
 import { useOfficeStore } from '@/lib/store/office';
 import { ZONE_ICONS, ZONE_ACCENT_COLORS } from '@/lib/canvas/layouts';
 import { cn, debounce } from '@/lib/utils';
-import type { Zone, AvatarPosition, Profile, WorkScheduleStatus } from '@/lib/types/database';
+import type { Zone, AvatarPosition, Profile, WorkScheduleStatus, Decoration } from '@/lib/types/database';
 
 // ---------------------------------------------------------------------------
 // Public prop types
@@ -29,6 +29,7 @@ export interface OfficeCanvasProps {
   speakingUserIds: Set<string>;
   workSchedules?: Map<string, WorkScheduleStatus>;
   bookedZoneIds?: Set<string>;
+  decorations?: Decoration[];
 }
 
 // ---------------------------------------------------------------------------
@@ -516,6 +517,7 @@ export default function OfficeCanvas({
   speakingUserIds,
   workSchedules,
   bookedZoneIds,
+  decorations,
 }: OfficeCanvasProps) {
   const store = useOfficeStore();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -633,6 +635,22 @@ export default function OfficeCanvas({
             />
           ))}
         </Layer>
+
+        {/* Layer 3 — Decorations (static, non-interactive) */}
+        {decorations && decorations.length > 0 && (
+          <Layer listening={false}>
+            {decorations.map((d) => (
+              <Text
+                key={d.id}
+                x={d.x}
+                y={d.y}
+                text={d.emoji}
+                fontSize={d.size}
+                listening={false}
+              />
+            ))}
+          </Layer>
+        )}
       </Stage>
 
       {/* Vignette overlay */}

@@ -105,6 +105,14 @@ export type ScheduleTemplate = {
   created_at: string;
 };
 
+export type Decoration = {
+  id: string;
+  emoji: string;
+  x: number;
+  y: number;
+  size: number;
+};
+
 export type BookableRoom = {
   id: string;
   organization_id: string;
@@ -166,7 +174,7 @@ export type Database = {
       >;
       zones: TableDef<
         Zone,
-        Omit<Zone, "id" | "created_at">,
+        Omit<Zone, "id" | "created_at"> & { id?: string },
         Partial<Omit<Zone, "id" | "created_at">>
       >;
       avatar_positions: TableDef<

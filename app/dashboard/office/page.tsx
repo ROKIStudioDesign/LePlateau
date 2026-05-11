@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
-import type { Profile, OfficeMap, Zone, WorkScheduleStatus } from "@/lib/types/database";
+import type { Profile, OfficeMap, Zone, WorkScheduleStatus, Decoration } from "@/lib/types/database";
 import { useOfficeStore } from "@/lib/store/office";
 import { usePresence } from "@/hooks/use-presence";
 import { useMSPresence } from "@/hooks/use-ms-presence";
@@ -25,11 +25,13 @@ function OfficeInner({
   officeMap,
   workSchedules,
   bookedZoneIds,
+  decorations,
 }: {
   profile: Profile;
   officeMap: OfficeMap;
   workSchedules: Map<string, WorkScheduleStatus>;
   bookedZoneIds: Set<string>;
+  decorations: Decoration[];
 }) {
   const supabase = createClient();
   const { zones, currentZoneId, setCurrentZone } = useOfficeStore();
@@ -108,6 +110,7 @@ function OfficeInner({
               speakingUserIds={speakingUserIds}
               workSchedules={workSchedules}
               bookedZoneIds={bookedZoneIds}
+              decorations={decorations}
             />
           </CanvasErrorBoundary>
 
@@ -150,6 +153,7 @@ export default function OfficePage() {
   const [officeMap, setOfficeMap] = useState<OfficeMap | null>(null);
   const [workSchedules, setWorkSchedules] = useState<Map<string, WorkScheduleStatus>>(new Map());
   const [bookedZoneIds, setBookedZoneIds] = useState<Set<string>>(new Set());
+  const [decorations, setDecorations] = useState<Decoration[]>([]);
 
   const { setZones } = useOfficeStore();
 
@@ -186,6 +190,12 @@ export default function OfficePage() {
         return;
       }
       setOfficeMap(mapData);
+
+      // Extract decorations from layout_json
+      const rawDecorations = mapData.layout_json?.decorations
+      if (Array.isArray(rawDecorations)) {
+        setDecorations(rawDecorations as Decoration[])
+      }
 
       const { data: zonesData } = await supabase
         .from("zones")
@@ -293,5 +303,5 @@ export default function OfficePage() {
   }
 
   // loadState === "ready"
-  return <OfficeInner profile={profile!} officeMap={officeMap!} workSchedules={workSchedules} bookedZoneIds={bookedZoneIds} />;
+  return <OfficeInner profile={profile!} officeMap={officeMap!} workSchedules={workSchedules} bookedZoneIds={bookedZoneIds} decorations={decorations} />;
 }
