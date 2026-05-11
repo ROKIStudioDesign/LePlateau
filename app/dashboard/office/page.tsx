@@ -192,9 +192,9 @@ export default function OfficePage() {
       setOfficeMap(mapData);
 
       // Extract decorations from layout_json
-      const rawDecorations = mapData.layout_json?.decorations
+      const rawDecorations = mapData.layout_json?.decorations;
       if (Array.isArray(rawDecorations)) {
-        setDecorations(rawDecorations as Decoration[])
+        setDecorations(rawDecorations as Decoration[]);
       }
 
       const { data: zonesData } = await supabase
@@ -220,7 +220,7 @@ export default function OfficePage() {
       setWorkSchedules(schedulesMap);
 
       // Fetch currently active room bookings (rooms linked to zones)
-      const nowTime = new Date().toTimeString().slice(0, 8); // HH:MM:SS
+      const nowTime = new Date().toTimeString().slice(0, 8);
       const { data: activeBookings } = await supabase
         .from("room_bookings")
         .select("room_id, bookable_rooms!inner(zone_id)")
@@ -248,10 +248,13 @@ export default function OfficePage() {
 
   if (loadState === "loading") {
     return (
-      <div className="flex h-full items-center justify-center">
+      <div className="flex h-full items-center justify-center" style={{ background: "var(--bg-secondary)" }}>
         <div className="text-center space-y-3">
-          <div className="w-10 h-10 rounded-full border-2 border-[#6366F1] border-t-transparent animate-spin mx-auto" />
-          <p className="text-[#64748B] text-sm">Chargement du bureau…</p>
+          <div
+            className="w-10 h-10 rounded-full border-2 border-t-transparent animate-spin mx-auto"
+            style={{ borderColor: "var(--accent-primary)", borderTopColor: "transparent" }}
+          />
+          <p className="text-sm" style={{ color: "var(--text-secondary)" }}>Chargement du bureau…</p>
         </div>
       </div>
     );
@@ -259,19 +262,20 @@ export default function OfficePage() {
 
   if (loadState === "no-org") {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-4 text-center px-6">
-        <MapIcon size={40} className="text-[#64748B]" />
+      <div className="flex h-full flex-col items-center justify-center gap-4 text-center px-6" style={{ background: "var(--bg-secondary)" }}>
+        <MapIcon size={40} style={{ color: "var(--text-muted)" }} />
         <div>
-          <p className="text-lg font-semibold text-[#F1F5F9]">
+          <p className="text-lg font-semibold" style={{ color: "var(--text-primary)" }}>
             Aucune organisation trouvée
           </p>
-          <p className="mt-1 text-sm text-[#64748B]">
+          <p className="mt-1 text-sm" style={{ color: "var(--text-secondary)" }}>
             Vous n&apos;êtes rattaché à aucune organisation.
           </p>
         </div>
         <Link
           href="/onboarding"
-          className="px-4 py-2 rounded-lg bg-[#6366F1] text-white text-sm font-medium hover:bg-[#5254cc] transition-colors"
+          className="px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+          style={{ background: "var(--accent-primary)", color: "white" }}
         >
           Créer une organisation →
         </Link>
@@ -281,20 +285,21 @@ export default function OfficePage() {
 
   if (loadState === "no-map") {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-4 text-center px-6">
-        <MapIcon size={40} className="text-[#64748B]" />
+      <div className="flex h-full flex-col items-center justify-center gap-4 text-center px-6" style={{ background: "var(--bg-secondary)" }}>
+        <MapIcon size={40} style={{ color: "var(--text-muted)" }} />
         <div>
-          <p className="text-lg font-semibold text-[#F1F5F9]">
+          <p className="text-lg font-semibold" style={{ color: "var(--text-primary)" }}>
             Bureau non configuré
           </p>
-          <p className="mt-1 text-sm text-[#64748B] max-w-sm">
+          <p className="mt-1 text-sm max-w-sm" style={{ color: "var(--text-secondary)" }}>
             Aucune carte de bureau n&apos;a encore été créée pour votre
             organisation.
           </p>
         </div>
         <Link
           href="/onboarding"
-          className="px-4 py-2 rounded-lg bg-[#6366F1] text-white text-sm font-medium hover:bg-[#5254cc] transition-colors"
+          className="px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+          style={{ background: "var(--accent-primary)", color: "white" }}
         >
           Configurer le bureau →
         </Link>

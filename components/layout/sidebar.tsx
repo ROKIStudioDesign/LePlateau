@@ -74,7 +74,7 @@ function getInitials(name: string): string {
 
 // ─── Sidebar ──────────────────────────────────────────────────────────────────
 
-export default function Sidebar() {
+export default function Sidebar({ onToggle }: { onToggle?: (collapsed: boolean) => void } = {}) {
   const pathname  = usePathname()
   const router    = useRouter()
   const supabase  = React.useMemo(() => createClient(), [])
@@ -91,8 +91,10 @@ export default function Sidebar() {
 
   function toggleCollapsed() {
     setCollapsed((v) => {
-      localStorage.setItem('sidebar-collapsed', String(!v))
-      return !v
+      const next = !v
+      localStorage.setItem('sidebar-collapsed', String(next))
+      onToggle?.(next)
+      return next
     })
   }
 

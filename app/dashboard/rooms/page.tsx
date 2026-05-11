@@ -62,13 +62,20 @@ interface BookingFormProps {
   rooms: BookableRoom[];
   existingBookings: RoomBooking[];
   initialRoom?: BookableRoom;
-  initialStart?: number; // minutes from midnight
+  initialStart?: number;
   date: Date;
   userId: string;
   orgId: string;
   onSave: (b: Omit<RoomBooking, "id" | "created_at">) => Promise<{ error?: string }>;
   onClose: () => void;
 }
+
+const inputStyle = {
+  background: "var(--bg-secondary)",
+  border: "1px solid var(--border-primary)",
+  color: "var(--text-primary)",
+  fontFamily: "'DM Sans', sans-serif",
+};
 
 function BookingFormModal({
   rooms, existingBookings, initialRoom, initialStart, date,
@@ -83,24 +90,18 @@ function BookingFormModal({
   const [saving, setSaving]       = useState(false);
   const [error, setError]         = useState("");
 
-  // Build time options in 30-min increments
   const startOptions = useMemo(() => {
     const opts = [];
-    for (let m = HOUR_START * 60; m < HOUR_END * 60; m += SLOT_MIN) {
-      opts.push(m);
-    }
+    for (let m = HOUR_START * 60; m < HOUR_END * 60; m += SLOT_MIN) opts.push(m);
     return opts;
   }, []);
 
   const endOptions = useMemo(() => {
     const opts = [];
-    for (let m = startMin + SLOT_MIN; m <= HOUR_END * 60; m += SLOT_MIN) {
-      opts.push(m);
-    }
+    for (let m = startMin + SLOT_MIN; m <= HOUR_END * 60; m += SLOT_MIN) opts.push(m);
     return opts;
   }, [startMin]);
 
-  // Check conflict client-side
   function hasConflict(rId: string, sMin: number, eMin: number) {
     return existingBookings.some(
       (b) =>
@@ -137,72 +138,63 @@ function BookingFormModal({
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center"
-      style={{ background: "rgba(0,0,0,0.65)", backdropFilter: "blur(4px)" }}
+      style={{ background: "rgba(0,0,0,0.25)", backdropFilter: "blur(4px)" }}
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div
         className="w-full max-w-md rounded-2xl p-6 flex flex-col gap-5"
         style={{
-          background: "#13131A",
-          border: "1px solid rgba(255,255,255,0.08)",
-          boxShadow: "0 24px 64px rgba(0,0,0,0.6)",
+          background: "var(--bg-primary)",
+          border: "1px solid var(--border-primary)",
+          boxShadow: "var(--shadow-lg)",
         }}
       >
         <div className="flex items-center justify-between">
-          <h3 className="font-bold text-base" style={{ color: "#F1F5F9", fontFamily: "'Syne', sans-serif" }}>
+          <h3 className="font-bold text-base" style={{ color: "var(--text-primary)", fontFamily: "'Syne', sans-serif" }}>
             Nouvelle réservation
           </h3>
-          <button onClick={onClose} className="text-[#64748B] hover:text-[#F1F5F9] transition-colors">
+          <button onClick={onClose} style={{ color: "var(--text-muted)" }}
+            onMouseEnter={(e) => { e.currentTarget.style.color = "var(--text-primary)"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.color = "var(--text-muted)"; }}
+          >
             <X size={18} />
           </button>
         </div>
 
         {/* Room select */}
         <div className="space-y-1.5">
-          <label className="text-xs font-medium text-[#64748B]">Salle</label>
+          <label className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>Salle</label>
           <select
             value={roomId}
             onChange={(e) => setRoomId(e.target.value)}
             className="w-full h-10 rounded-xl px-3 text-sm outline-none"
-            style={{
-              background: "rgba(255,255,255,0.04)",
-              border: "1px solid rgba(255,255,255,0.08)",
-              color: "#F1F5F9",
-              fontFamily: "'DM Sans', sans-serif",
-            }}
+            style={inputStyle}
           >
             {rooms.map((r) => (
-              <option key={r.id} value={r.id} style={{ background: "#13131A" }}>
-                {r.name} ({r.capacity} pers.)
-              </option>
+              <option key={r.id} value={r.id}>{r.name} ({r.capacity} pers.)</option>
             ))}
           </select>
         </div>
 
         {/* Title */}
         <div className="space-y-1.5">
-          <label className="text-xs font-medium text-[#64748B]">Objet de la réunion</label>
+          <label className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>Objet de la réunion</label>
           <input
             type="text"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="Ex: Réunion projet, Stand-up…"
             className="w-full h-10 rounded-xl px-3 text-sm outline-none"
-            style={{
-              background: "rgba(255,255,255,0.04)",
-              border: "1px solid rgba(255,255,255,0.08)",
-              color: "#F1F5F9",
-              fontFamily: "'DM Sans', sans-serif",
-            }}
-            onFocus={(e) => { e.currentTarget.style.border = "1px solid rgba(99,102,241,0.5)"; }}
-            onBlur={(e) => { e.currentTarget.style.border = "1px solid rgba(255,255,255,0.08)"; }}
+            style={inputStyle}
+            onFocus={(e) => { e.currentTarget.style.border = "1px solid var(--accent-primary)"; }}
+            onBlur={(e) => { e.currentTarget.style.border = "1px solid var(--border-primary)"; }}
           />
         </div>
 
         {/* Time range */}
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-[#64748B]">Début</label>
+            <label className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>Début</label>
             <select
               value={startMin}
               onChange={(e) => {
@@ -211,45 +203,30 @@ function BookingFormModal({
                 if (endMin <= v) setEndMin(v + SLOT_MIN);
               }}
               className="w-full h-10 rounded-xl px-3 text-sm outline-none"
-              style={{
-                background: "rgba(255,255,255,0.04)",
-                border: "1px solid rgba(255,255,255,0.08)",
-                color: "#F1F5F9",
-                fontFamily: "'DM Sans', sans-serif",
-              }}
+              style={inputStyle}
             >
               {startOptions.map((m) => (
-                <option key={m} value={m} style={{ background: "#13131A" }}>
-                  {minutesToTime(m)}
-                </option>
+                <option key={m} value={m}>{minutesToTime(m)}</option>
               ))}
             </select>
           </div>
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-[#64748B]">Fin</label>
+            <label className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>Fin</label>
             <select
               value={endMin}
               onChange={(e) => setEndMin(parseInt(e.target.value))}
               className="w-full h-10 rounded-xl px-3 text-sm outline-none"
-              style={{
-                background: "rgba(255,255,255,0.04)",
-                border: "1px solid rgba(255,255,255,0.08)",
-                color: "#F1F5F9",
-                fontFamily: "'DM Sans', sans-serif",
-              }}
+              style={inputStyle}
             >
               {endOptions.map((m) => (
-                <option key={m} value={m} style={{ background: "#13131A" }}>
-                  {minutesToTime(m)}
-                </option>
+                <option key={m} value={m}>{minutesToTime(m)}</option>
               ))}
             </select>
           </div>
         </div>
 
-        {/* Conflict warning */}
         {conflictWarning && (
-          <p className="text-xs text-amber-400 flex items-center gap-1.5">
+          <p className="text-xs flex items-center gap-1.5" style={{ color: "var(--warning)" }}>
             <Clock size={12} />
             Ce créneau chevauche une réservation existante.
           </p>
@@ -257,56 +234,48 @@ function BookingFormModal({
 
         {/* Attendees */}
         <div className="space-y-1.5">
-          <label className="text-xs font-medium text-[#64748B]">Participants</label>
+          <label className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>Participants</label>
           <input
             type="number"
             min={1}
             value={attendees}
             onChange={(e) => setAttendees(Math.max(1, parseInt(e.target.value) || 1))}
             className="w-full h-10 rounded-xl px-3 text-sm outline-none"
-            style={{
-              background: "rgba(255,255,255,0.04)",
-              border: "1px solid rgba(255,255,255,0.08)",
-              color: "#F1F5F9",
-              fontFamily: "'DM Sans', sans-serif",
-            }}
-            onFocus={(e) => { e.currentTarget.style.border = "1px solid rgba(99,102,241,0.5)"; }}
-            onBlur={(e) => { e.currentTarget.style.border = "1px solid rgba(255,255,255,0.08)"; }}
+            style={inputStyle}
+            onFocus={(e) => { e.currentTarget.style.border = "1px solid var(--accent-primary)"; }}
+            onBlur={(e) => { e.currentTarget.style.border = "1px solid var(--border-primary)"; }}
           />
         </div>
 
         {/* Note */}
         <div className="space-y-1.5">
-          <label className="text-xs font-medium text-[#64748B]">Note (optionnel)</label>
+          <label className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>Note (optionnel)</label>
           <input
             type="text"
             value={note}
             onChange={(e) => setNote(e.target.value)}
             placeholder="Informations supplémentaires…"
             className="w-full h-10 rounded-xl px-3 text-sm outline-none"
-            style={{
-              background: "rgba(255,255,255,0.04)",
-              border: "1px solid rgba(255,255,255,0.08)",
-              color: "#F1F5F9",
-              fontFamily: "'DM Sans', sans-serif",
-            }}
-            onFocus={(e) => { e.currentTarget.style.border = "1px solid rgba(99,102,241,0.5)"; }}
-            onBlur={(e) => { e.currentTarget.style.border = "1px solid rgba(255,255,255,0.08)"; }}
+            style={inputStyle}
+            onFocus={(e) => { e.currentTarget.style.border = "1px solid var(--accent-primary)"; }}
+            onBlur={(e) => { e.currentTarget.style.border = "1px solid var(--border-primary)"; }}
           />
         </div>
 
-        {error && <p className="text-xs text-red-400">{error}</p>}
+        {error && <p className="text-xs" style={{ color: "var(--danger)" }}>{error}</p>}
 
         <div className="flex gap-3">
           <button
             onClick={onClose}
             className="flex-1 h-10 rounded-xl text-sm font-medium"
             style={{
-              background: "rgba(255,255,255,0.04)",
-              color: "#64748B",
-              border: "1px solid rgba(255,255,255,0.06)",
+              background: "var(--bg-secondary)",
+              color: "var(--text-secondary)",
+              border: "1px solid var(--border-primary)",
               fontFamily: "'DM Sans', sans-serif",
             }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = "var(--bg-hover)"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "var(--bg-secondary)"; }}
           >
             Annuler
           </button>
@@ -315,11 +284,12 @@ function BookingFormModal({
             disabled={saving || !title.trim() || !roomId}
             className="flex-1 h-10 rounded-xl text-sm font-semibold disabled:opacity-50"
             style={{
-              background: "linear-gradient(135deg, #6366F1, #818CF8)",
+              background: "var(--accent-primary)",
               color: "#fff",
               fontFamily: "'DM Sans', sans-serif",
-              boxShadow: "0 0 20px rgba(99,102,241,0.3)",
             }}
+            onMouseEnter={(e) => { if (!e.currentTarget.disabled) e.currentTarget.style.background = "var(--accent-hover)"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "var(--accent-primary)"; }}
           >
             {saving ? "Réservation…" : "Réserver"}
           </button>
@@ -346,32 +316,35 @@ function BookingDetail({ booking, room, booker, currentUserId, isAdmin, onCancel
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center"
-      style={{ background: "rgba(0,0,0,0.55)", backdropFilter: "blur(3px)" }}
+      style={{ background: "rgba(0,0,0,0.25)", backdropFilter: "blur(3px)" }}
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div
         className="w-full max-w-xs rounded-2xl p-5 flex flex-col gap-4"
         style={{
-          background: "#13131A",
-          border: `1px solid ${room.color}44`,
-          boxShadow: `0 0 40px ${room.color}22, 0 24px 64px rgba(0,0,0,0.6)`,
+          background: "var(--bg-primary)",
+          border: `1px solid var(--border-primary)`,
+          boxShadow: "var(--shadow-lg)",
         }}
       >
         <div className="flex items-start justify-between gap-2">
           <div>
-            <p className="font-bold text-sm text-[#F1F5F9]" style={{ fontFamily: "'Syne', sans-serif" }}>
+            <p className="font-bold text-sm" style={{ color: "var(--text-primary)", fontFamily: "'Syne', sans-serif" }}>
               {booking.title}
             </p>
-            <p className="text-xs mt-0.5" style={{ color: room.color }}>
+            <p className="text-xs mt-0.5 font-medium" style={{ color: room.color }}>
               {room.name}
             </p>
           </div>
-          <button onClick={onClose} className="text-[#64748B] hover:text-[#F1F5F9] transition-colors mt-0.5">
+          <button onClick={onClose} style={{ color: "var(--text-muted)" }}
+            onMouseEnter={(e) => { e.currentTarget.style.color = "var(--text-primary)"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.color = "var(--text-muted)"; }}
+          >
             <X size={16} />
           </button>
         </div>
 
-        <div className="space-y-2 text-xs text-[#64748B]" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+        <div className="space-y-2 text-xs" style={{ color: "var(--text-secondary)", fontFamily: "'DM Sans', sans-serif" }}>
           <div className="flex items-center gap-2">
             <Clock size={12} />
             <span>{formatTime(booking.start_time)} – {formatTime(booking.end_time)}</span>
@@ -381,10 +354,10 @@ function BookingDetail({ booking, room, booker, currentUserId, isAdmin, onCancel
             <span>{booking.attendees_count} participant{booking.attendees_count > 1 ? "s" : ""}</span>
           </div>
           {booker && (
-            <p className="text-[#475569]">Réservé par {booker.display_name}</p>
+            <p style={{ color: "var(--text-muted)" }}>Réservé par {booker.display_name}</p>
           )}
           {booking.note && (
-            <p className="italic text-[#475569]">{booking.note}</p>
+            <p className="italic" style={{ color: "var(--text-muted)" }}>{booking.note}</p>
           )}
         </div>
 
@@ -393,13 +366,13 @@ function BookingDetail({ booking, room, booker, currentUserId, isAdmin, onCancel
             onClick={onCancel}
             className="w-full h-9 rounded-xl text-sm font-medium transition-all"
             style={{
-              background: "rgba(239,68,68,0.1)",
-              color: "#F87171",
-              border: "1px solid rgba(239,68,68,0.2)",
+              background: "var(--danger-light)",
+              color: "var(--danger)",
+              border: "1px solid var(--danger-light)",
               fontFamily: "'DM Sans', sans-serif",
             }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(239,68,68,0.2)"; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(239,68,68,0.1)"; }}
+            onMouseEnter={(e) => { e.currentTarget.style.border = "1px solid var(--danger)"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.border = "1px solid var(--danger-light)"; }}
           >
             Annuler la réservation
           </button>
@@ -435,14 +408,11 @@ function TimelineRow({ room, bookings, date, onSlotClick, onBookingClick }: Time
           className="h-full cursor-pointer transition-colors"
           style={{
             width: SLOT_W,
-            borderRight: "1px solid rgba(255,255,255,0.04)",
-            background: i % 2 === 0 ? "transparent" : "rgba(255,255,255,0.01)",
+            borderRight: "1px solid var(--border-primary)",
+            background: "transparent",
           }}
-          onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.background = `${room.color}10`; }}
-          onMouseLeave={(e) => {
-            (e.currentTarget as HTMLDivElement).style.background =
-              i % 2 === 0 ? "transparent" : "rgba(255,255,255,0.01)";
-          }}
+          onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.background = `${room.color}18`; }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.background = "transparent"; }}
         />
       ))}
 
@@ -463,9 +433,8 @@ function TimelineRow({ room, bookings, date, onSlotClick, onBookingClick }: Time
               left: left + 1,
               width,
               height: 42,
-              background: `${room.color}22`,
+              background: `${room.color}20`,
               border: `1px solid ${room.color}55`,
-              boxShadow: `0 0 10px ${room.color}11`,
             }}
           >
             <p
@@ -506,8 +475,8 @@ function CurrentTimeIndicator({ date }: { date: Date }) {
       className="absolute top-0 bottom-0 z-10 pointer-events-none"
       style={{ left: LABEL_W + left }}
     >
-      <div className="absolute top-0 bottom-0 w-px bg-[#6366F1] opacity-70" />
-      <div className="absolute -top-1.5 -left-1 w-2 h-2 rounded-full bg-[#6366F1]" />
+      <div className="absolute top-0 bottom-0 w-px opacity-70" style={{ background: "var(--accent-primary)" }} />
+      <div className="absolute -top-1.5 -left-1 w-2 h-2 rounded-full" style={{ background: "var(--accent-primary)" }} />
     </div>
   );
 }
@@ -530,7 +499,6 @@ export default function RoomsPage() {
 
   const isAdmin = currentUser?.role === "admin";
 
-  // Bootstrap
   useEffect(() => {
     async function init() {
       const { data: { user } } = await supabase.auth.getUser();
@@ -560,12 +528,10 @@ export default function RoomsPage() {
     void init();
   }, [supabase]);
 
-  // Fetch bookings when date or orgId changes
   const fetchBookings = useCallback(async () => {
     if (!orgId) return;
     setLoading(true);
 
-    // Fetch ±1 day buffer for smooth navigation
     const from = toISO(addDays(date, -1));
     const to   = toISO(addDays(date, 1));
     const { data } = await supabase
@@ -581,7 +547,6 @@ export default function RoomsPage() {
 
   useEffect(() => { void fetchBookings(); }, [fetchBookings]);
 
-  // Scroll to ~current time on mount (or 8:00 for future days)
   useEffect(() => {
     if (!scrollRef.current) return;
     const now = new Date();
@@ -611,23 +576,29 @@ export default function RoomsPage() {
     ? rooms.find((r) => r.id === detailBooking.room_id)
     : undefined;
 
+  const navBtnStyle = {
+    background: "var(--bg-primary)",
+    color: "var(--text-secondary)",
+    border: "1px solid var(--border-primary)",
+  };
+
   return (
-    <div className="flex flex-col h-full overflow-hidden" style={{ background: "#0A0A0F" }}>
+    <div className="flex flex-col h-full overflow-hidden" style={{ background: "var(--bg-secondary)" }}>
       {/* Header */}
       <div
         className="flex items-center justify-between px-6 py-4 shrink-0"
-        style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}
+        style={{ background: "var(--bg-primary)", borderBottom: "1px solid var(--border-primary)" }}
       >
         <div>
           <h1
             className="font-bold text-xl"
-            style={{ color: "#F1F5F9", fontFamily: "'Syne', sans-serif" }}
+            style={{ color: "var(--text-primary)", fontFamily: "'Syne', sans-serif" }}
           >
             Salles de réunion
           </h1>
           <p
             className="text-sm mt-0.5 capitalize"
-            style={{ color: "#64748B", fontFamily: "'DM Sans', sans-serif" }}
+            style={{ color: "var(--text-secondary)", fontFamily: "'DM Sans', sans-serif" }}
           >
             {formatDateLabel(date)}
           </p>
@@ -639,27 +610,27 @@ export default function RoomsPage() {
             <button
               onClick={() => setDate((d) => addDays(d, -1))}
               className="flex items-center justify-center w-8 h-8 rounded-lg transition-colors"
-              style={{ background: "rgba(255,255,255,0.04)", color: "#64748B", border: "1px solid rgba(255,255,255,0.06)" }}
-              onMouseEnter={(e) => { e.currentTarget.style.color = "#F1F5F9"; }}
-              onMouseLeave={(e) => { e.currentTarget.style.color = "#64748B"; }}
+              style={navBtnStyle}
+              onMouseEnter={(e) => { e.currentTarget.style.background = "var(--bg-hover)"; e.currentTarget.style.color = "var(--text-primary)"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = "var(--bg-primary)"; e.currentTarget.style.color = "var(--text-secondary)"; }}
             >
               <ChevronLeft size={16} />
             </button>
             <button
               onClick={() => setDate(new Date())}
               className="flex items-center justify-center h-8 px-3 rounded-lg text-xs font-medium transition-colors"
-              style={{ background: "rgba(255,255,255,0.04)", color: "#64748B", border: "1px solid rgba(255,255,255,0.06)", fontFamily: "'DM Sans', sans-serif" }}
-              onMouseEnter={(e) => { e.currentTarget.style.color = "#F1F5F9"; }}
-              onMouseLeave={(e) => { e.currentTarget.style.color = "#64748B"; }}
+              style={{ ...navBtnStyle, fontFamily: "'DM Sans', sans-serif" }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = "var(--bg-hover)"; e.currentTarget.style.color = "var(--text-primary)"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = "var(--bg-primary)"; e.currentTarget.style.color = "var(--text-secondary)"; }}
             >
               Aujourd&apos;hui
             </button>
             <button
               onClick={() => setDate((d) => addDays(d, 1))}
               className="flex items-center justify-center w-8 h-8 rounded-lg transition-colors"
-              style={{ background: "rgba(255,255,255,0.04)", color: "#64748B", border: "1px solid rgba(255,255,255,0.06)" }}
-              onMouseEnter={(e) => { e.currentTarget.style.color = "#F1F5F9"; }}
-              onMouseLeave={(e) => { e.currentTarget.style.color = "#64748B"; }}
+              style={navBtnStyle}
+              onMouseEnter={(e) => { e.currentTarget.style.background = "var(--bg-hover)"; e.currentTarget.style.color = "var(--text-primary)"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = "var(--bg-primary)"; e.currentTarget.style.color = "var(--text-secondary)"; }}
             >
               <ChevronRight size={16} />
             </button>
@@ -668,13 +639,14 @@ export default function RoomsPage() {
           {/* New booking */}
           <button
             onClick={() => setBookingForm({})}
-            className="flex items-center gap-2 h-8 px-3 rounded-xl text-xs font-semibold transition-all"
+            className="flex items-center gap-2 h-8 px-3 rounded-xl text-xs font-semibold transition-colors"
             style={{
-              background: "linear-gradient(135deg, #6366F1, #818CF8)",
+              background: "var(--accent-primary)",
               color: "#fff",
               fontFamily: "'DM Sans', sans-serif",
-              boxShadow: "0 0 16px rgba(99,102,241,0.25)",
             }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = "var(--accent-hover)"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "var(--accent-primary)"; }}
           >
             <Plus size={14} />
             Réserver
@@ -685,12 +657,15 @@ export default function RoomsPage() {
       {/* No rooms state */}
       {!loading && rooms.length === 0 && (
         <div className="flex-1 flex flex-col items-center justify-center gap-3 text-center px-6">
-          <DoorOpen size={40} className="text-[#1E1E2E]" />
-          <p className="text-[#64748B] text-sm">Aucune salle configurée.</p>
+          <DoorOpen size={40} style={{ color: "var(--border-secondary)" }} />
+          <p className="text-sm" style={{ color: "var(--text-secondary)" }}>Aucune salle configurée.</p>
           {isAdmin && (
             <a
               href="/dashboard/settings/rooms"
-              className="text-sm font-medium text-[#6366F1] hover:text-[#818CF8] transition-colors"
+              className="text-sm font-medium transition-colors"
+              style={{ color: "var(--accent-primary)" }}
+              onMouseEnter={(e) => { e.currentTarget.style.color = "var(--accent-hover)"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.color = "var(--accent-primary)"; }}
             >
               Configurer les salles →
             </a>
@@ -701,7 +676,6 @@ export default function RoomsPage() {
       {/* Timeline */}
       {rooms.length > 0 && (
         <div className="flex-1 overflow-hidden flex flex-col">
-          {/* Container with sticky left column + scrollable right */}
           <div className="flex-1 overflow-hidden relative">
             <CurrentTimeIndicator date={date} />
 
@@ -711,17 +685,17 @@ export default function RoomsPage() {
                 className="shrink-0 flex flex-col"
                 style={{
                   width: LABEL_W,
-                  borderRight: "1px solid rgba(255,255,255,0.06)",
+                  borderRight: "1px solid var(--border-primary)",
                   zIndex: 2,
-                  background: "#0A0A0F",
+                  background: "var(--bg-primary)",
                 }}
               >
-                {/* Corner spacer (aligned with hour header) */}
+                {/* Corner spacer */}
                 <div
                   className="shrink-0 flex items-end px-4 pb-1"
-                  style={{ height: 36, borderBottom: "1px solid rgba(255,255,255,0.06)" }}
+                  style={{ height: 36, borderBottom: "1px solid var(--border-primary)" }}
                 >
-                  <span className="text-[10px] font-semibold text-[#334155] uppercase tracking-wider">
+                  <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
                     {rooms.length} salle{rooms.length > 1 ? "s" : ""}
                   </span>
                 </div>
@@ -734,23 +708,20 @@ export default function RoomsPage() {
                       className="flex items-center gap-3 px-4"
                       style={{
                         height: 52,
-                        borderBottom: "1px solid rgba(255,255,255,0.04)",
+                        borderBottom: "1px solid var(--border-primary)",
                       }}
                     >
-                      <div
-                        className="w-2 h-2 rounded-full shrink-0"
-                        style={{ background: room.color }}
-                      />
+                      <div className="w-2 h-2 rounded-full shrink-0" style={{ background: room.color }} />
                       <div className="min-w-0">
                         <p
                           className="text-xs font-semibold truncate"
-                          style={{ color: "#F1F5F9", fontFamily: "'Syne', sans-serif" }}
+                          style={{ color: "var(--text-primary)", fontFamily: "'Syne', sans-serif" }}
                         >
                           {room.name}
                         </p>
                         <p
-                          className="text-[10px] text-[#475569]"
-                          style={{ fontFamily: "'DM Sans', sans-serif" }}
+                          className="text-[10px]"
+                          style={{ color: "var(--text-muted)", fontFamily: "'DM Sans', sans-serif" }}
                         >
                           {room.capacity} pers.
                         </p>
@@ -764,7 +735,7 @@ export default function RoomsPage() {
               <div
                 ref={scrollRef}
                 className="flex-1 overflow-x-auto overflow-y-auto"
-                style={{ scrollbarWidth: "thin", scrollbarColor: "#1E1E2E transparent" }}
+                style={{ scrollbarWidth: "thin", scrollbarColor: "var(--border-primary) transparent" }}
               >
                 <div style={{ width: TIMELINE_W, minWidth: TIMELINE_W }}>
                   {/* Hour header */}
@@ -772,8 +743,8 @@ export default function RoomsPage() {
                     className="flex sticky top-0 z-10"
                     style={{
                       height: 36,
-                      borderBottom: "1px solid rgba(255,255,255,0.06)",
-                      background: "#0A0A0F",
+                      borderBottom: "1px solid var(--border-primary)",
+                      background: "var(--bg-primary)",
                     }}
                   >
                     {Array.from({ length: TOTAL_SLOTS / 2 }).map((_, i) => {
@@ -785,12 +756,12 @@ export default function RoomsPage() {
                         <div
                           key={i}
                           className="flex items-end pb-1 pl-2"
-                          style={{ width: SLOT_W * 2, borderRight: "1px solid rgba(255,255,255,0.04)" }}
+                          style={{ width: SLOT_W * 2, borderRight: "1px solid var(--border-primary)" }}
                         >
                           <span
                             className="text-[10px] font-semibold"
                             style={{
-                              color: isNowHour ? "#6366F1" : "#334155",
+                              color: isNowHour ? "var(--accent-primary)" : "var(--text-muted)",
                               fontFamily: "'DM Sans', sans-serif",
                             }}
                           >
@@ -805,7 +776,7 @@ export default function RoomsPage() {
                   {rooms.map((room) => (
                     <div
                       key={room.id}
-                      style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}
+                      style={{ borderBottom: "1px solid var(--border-primary)" }}
                     >
                       <TimelineRow
                         room={room}
@@ -825,7 +796,7 @@ export default function RoomsPage() {
           {/* Legend */}
           <div
             className="shrink-0 px-6 py-2 flex items-center gap-2 text-xs"
-            style={{ borderTop: "1px solid rgba(255,255,255,0.05)", color: "#334155", fontFamily: "'DM Sans', sans-serif" }}
+            style={{ borderTop: "1px solid var(--border-primary)", color: "var(--text-muted)", fontFamily: "'DM Sans', sans-serif" }}
           >
             <span>Cliquez sur un créneau pour réserver · Cliquez sur une réservation pour voir les détails</span>
           </div>
