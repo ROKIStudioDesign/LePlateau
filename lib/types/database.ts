@@ -105,6 +105,32 @@ export type ScheduleTemplate = {
   created_at: string;
 };
 
+export type BookableRoom = {
+  id: string;
+  organization_id: string;
+  zone_id: string | null;
+  name: string;
+  capacity: number;
+  equipment: string[];
+  color: string;
+  is_active: boolean;
+  created_at: string;
+};
+
+export type RoomBooking = {
+  id: string;
+  room_id: string;
+  user_id: string;
+  organization_id: string;
+  title: string;
+  date: string;
+  start_time: string;
+  end_time: string;
+  attendees_count: number;
+  note: string | null;
+  created_at: string;
+};
+
 type Relationship = {
   foreignKeyName: string;
   columns: string[];
@@ -162,6 +188,16 @@ export type Database = {
         ScheduleTemplate,
         Omit<ScheduleTemplate, "id" | "created_at">,
         Partial<Omit<ScheduleTemplate, "id" | "created_at">>
+      >;
+      bookable_rooms: TableDef<
+        BookableRoom,
+        Omit<BookableRoom, "id" | "created_at">,
+        Partial<Omit<BookableRoom, "id" | "created_at">>
+      >;
+      room_bookings: TableDef<
+        RoomBooking,
+        Omit<RoomBooking, "id" | "created_at">,
+        Partial<Omit<RoomBooking, "id" | "created_at">>
       >;
     };
     Views: Record<string, never>;

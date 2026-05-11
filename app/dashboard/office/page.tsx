@@ -24,10 +24,12 @@ function OfficeInner({
   profile,
   officeMap,
   workSchedules,
+  bookedZoneIds,
 }: {
   profile: Profile;
   officeMap: OfficeMap;
   workSchedules: Map<string, WorkScheduleStatus>;
+  bookedZoneIds: Set<string>;
 }) {
   const supabase = createClient();
   const { zones, currentZoneId, setCurrentZone } = useOfficeStore();
@@ -105,6 +107,7 @@ function OfficeInner({
               onAvatarClick={handleAvatarClick}
               speakingUserIds={speakingUserIds}
               workSchedules={workSchedules}
+              bookedZoneIds={bookedZoneIds}
             />
           </CanvasErrorBoundary>
 
@@ -146,6 +149,7 @@ export default function OfficePage() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [officeMap, setOfficeMap] = useState<OfficeMap | null>(null);
   const [workSchedules, setWorkSchedules] = useState<Map<string, WorkScheduleStatus>>(new Map());
+  const [bookedZoneIds, setBookedZoneIds] = useState<Set<string>>(new Set());
 
   const { setZones } = useOfficeStore();
 
@@ -204,6 +208,24 @@ export default function OfficePage() {
         schedulesMap.set(s.user_id, s.status as WorkScheduleStatus);
       }
       setWorkSchedules(schedulesMap);
+
+      // Fetch currently active room bookings (rooms linked to zones)
+      const nowTime = new Date().toTimeString().slice(0, 8); // HH:MM:SS
+      const { data: activeBookings } = await supabase
+        .from("room_bookings")
+        .select("room_id, bookable_rooms!inner(zone_id)")
+        .eq("organization_id", profileData.organization_id)
+        .eq("date", today)
+        .lte("start_time", nowTime)
+        .gt("end_time", nowTime);
+
+      const bookedZones = new Set<string>();
+      for (const b of activeBookings ?? []) {
+        const zoneId = (b as unknown as { bookable_rooms: { zone_id: string | null } })
+          .bookable_rooms?.zone_id;
+        if (zoneId) bookedZones.add(zoneId);
+      }
+      setBookedZoneIds(bookedZones);
 
       setLoadState("ready");
     }
@@ -271,5 +293,5 @@ export default function OfficePage() {
   }
 
   // loadState === "ready"
-  return <OfficeInner profile={profile!} officeMap={officeMap!} workSchedules={workSchedules} />;
+  return <OfficeInner profile={profile!} officeMap={officeMap!} workSchedules={workSchedules} bookedZoneIds={bookedZoneIds} />;
 }

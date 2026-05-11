@@ -28,6 +28,7 @@ export interface OfficeCanvasProps {
   onAvatarClick?: (userId: string) => void;
   speakingUserIds: Set<string>;
   workSchedules?: Map<string, WorkScheduleStatus>;
+  bookedZoneIds?: Set<string>;
 }
 
 // ---------------------------------------------------------------------------
@@ -91,6 +92,7 @@ function hexToRgba(hex: string, alpha: number): string {
 interface ZoneShapeProps {
   zone: Zone;
   isSelected: boolean;
+  isBooked: boolean;
   occupantCount: number;
   onZoneEnter: (zone: Zone) => void;
   onSelect: (zoneId: string) => void;
@@ -99,9 +101,12 @@ interface ZoneShapeProps {
   onHoverEnd: () => void;
 }
 
+const BOOKED_COLOR = '#F59E0B';
+
 const ZoneShape = memo(function ZoneShape({
   zone,
   isSelected,
+  isBooked,
   occupantCount,
   onZoneEnter,
   onSelect,
@@ -110,7 +115,7 @@ const ZoneShape = memo(function ZoneShape({
   onHoverEnd,
 }: ZoneShapeProps) {
   const [hovered, setHovered] = useState(false);
-  const accent = ZONE_ACCENT_COLORS[zone.type] ?? '#6366F1';
+  const accent = isBooked ? BOOKED_COLOR : (ZONE_ACCENT_COLORS[zone.type] ?? '#6366F1');
 
   const getPagePos = (e: Konva.KonvaEventObject<MouseEvent>) => ({
     px: e.evt.clientX,
@@ -205,6 +210,30 @@ const ZoneShape = memo(function ZoneShape({
             verticalAlign="middle"
             fontSize={10}
             fill={accent}
+            fontFamily="'DM Sans', sans-serif"
+            listening={false}
+          />
+        </Group>
+      )}
+      {/* Booked indicator */}
+      {isBooked && (
+        <Group x={zone.width / 2 - 28} y={zone.max_capacity != null ? zone.height - 48 : zone.height - 26}>
+          <Rect
+            width={56}
+            height={18}
+            fill={hexToRgba(BOOKED_COLOR, 0.2)}
+            stroke={hexToRgba(BOOKED_COLOR, 0.6)}
+            strokeWidth={1}
+            cornerRadius={9}
+          />
+          <Text
+            text="🔒 Réservé"
+            width={56}
+            height={18}
+            align="center"
+            verticalAlign="middle"
+            fontSize={9}
+            fill={BOOKED_COLOR}
             fontFamily="'DM Sans', sans-serif"
             listening={false}
           />
@@ -486,6 +515,7 @@ export default function OfficeCanvas({
   onAvatarClick,
   speakingUserIds,
   workSchedules,
+  bookedZoneIds,
 }: OfficeCanvasProps) {
   const store = useOfficeStore();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -569,6 +599,7 @@ export default function OfficeCanvas({
               key={zone.id}
               zone={zone}
               isSelected={store.selectedZoneId === zone.id}
+              isBooked={bookedZoneIds?.has(zone.id) ?? false}
               occupantCount={occupantCounts.get(zone.id) ?? 0}
               onZoneEnter={onZoneEnter}
               onSelect={(id) => store.setSelectedZone(id)}
