@@ -4,10 +4,17 @@ import * as React from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import * as Tooltip from '@radix-ui/react-tooltip'
-import { Map, Users, Settings, Bell, LogOut, CalendarDays, DoorOpen } from 'lucide-react'
+import {
+  Map,
+  Users,
+  Settings,
+  CalendarDays,
+  DoorOpen,
+  ChevronLeft,
+  ChevronRight,
+  LogOut,
+} from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { Avatar } from '@/components/ui/avatar'
-import { useOfficeStore } from '@/lib/store/office'
 import { createClient } from '@/lib/supabase/client'
 import type { Profile } from '@/lib/types/database'
 
@@ -20,38 +27,33 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { label: 'Bureau', href: '/dashboard/office', icon: Map },
-  { label: 'Planning', href: '/dashboard/schedule', icon: CalendarDays },
-  { label: 'Salles', href: '/dashboard/rooms', icon: DoorOpen },
-  { label: 'Membres', href: '/dashboard/settings/members', icon: Users },
-  { label: 'Paramètres', href: '/dashboard/settings/organization', icon: Settings },
+  { label: 'Bureau',    href: '/dashboard/office',               icon: Map },
+  { label: 'Planning',  href: '/dashboard/schedule',             icon: CalendarDays },
+  { label: 'Salles',    href: '/dashboard/rooms',                icon: DoorOpen },
+  { label: 'Membres',   href: '/dashboard/settings/members',     icon: Users },
+  { label: 'Paramètres',href: '/dashboard/settings/organization',icon: Settings },
 ]
 
-// ─── Tooltip wrapper ──────────────────────────────────────────────────────────
+// ─── Collapsed tooltip ────────────────────────────────────────────────────────
 
-function SidebarTooltip({
-  label,
-  children,
-}: {
-  label: string
-  children: React.ReactNode
-}) {
+function NavTooltip({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <Tooltip.Provider delayDuration={300}>
+    <Tooltip.Provider delayDuration={200}>
       <Tooltip.Root>
         <Tooltip.Trigger asChild>{children}</Tooltip.Trigger>
         <Tooltip.Portal>
           <Tooltip.Content
             side="right"
             sideOffset={8}
-            className={cn(
-              'z-50 px-3 py-1.5 rounded-md text-xs font-sans font-medium',
-              'bg-[#1E1E2E] text-[#F1F5F9] border border-[#1E1E2E]',
-              'shadow-card animate-fade-in select-none'
-            )}
+            className="z-50 px-2.5 py-1.5 rounded-md text-xs font-medium select-none animate-fade-in"
+            style={{
+              background: 'var(--text-primary)',
+              color: 'var(--bg-primary)',
+              boxShadow: 'var(--shadow-md)',
+            }}
           >
             {label}
-            <Tooltip.Arrow className="fill-[#1E1E2E]" />
+            <Tooltip.Arrow style={{ fill: 'var(--text-primary)' }} />
           </Tooltip.Content>
         </Tooltip.Portal>
       </Tooltip.Root>
@@ -59,75 +61,70 @@ function SidebarTooltip({
   )
 }
 
-// ─── Icon button ──────────────────────────────────────────────────────────────
+// ─── User initials helper ─────────────────────────────────────────────────────
 
-function IconButton({
-  active,
-  onClick,
-  children,
-  className,
-}: {
-  active?: boolean
-  onClick?: () => void
-  children: React.ReactNode
-  className?: string
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={cn(
-        'relative flex items-center justify-center w-10 h-10 rounded-lg transition-all duration-200',
-        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#6366F1] focus-visible:ring-offset-2 focus-visible:ring-offset-[#13131A]',
-        active
-          ? 'bg-[#6366F1] text-[#F1F5F9] shadow-glow'
-          : 'bg-transparent text-[#64748B] hover:bg-white/5 hover:text-[#F1F5F9]',
-        className
-      )}
-    >
-      {children}
-    </button>
-  )
+function getInitials(name: string): string {
+  return name
+    .split(' ')
+    .map((n) => n[0] ?? '')
+    .join('')
+    .toUpperCase()
+    .slice(0, 2)
 }
 
 // ─── Sidebar ──────────────────────────────────────────────────────────────────
 
 export default function Sidebar() {
-  const pathname = usePathname()
-  const router = useRouter()
-  const supabase = React.useMemo(() => createClient(), [])
+  const pathname  = usePathname()
+  const router    = useRouter()
+  const supabase  = React.useMemo(() => createClient(), [])
 
-  const [profile, setProfile] = React.useState<Profile | null>(null)
-  const [popoverOpen, setPopoverOpen] = React.useState(false)
+  const [collapsed, setCollapsed] = React.useState(false)
+  const [profile,   setProfile]   = React.useState<Profile | null>(null)
+  const [orgName,   setOrgName]   = React.useState<string | null>(null)
 
-  const knockNotifications = useOfficeStore((s) => s.knockNotifications)
-  const unreadCount = knockNotifications.length
+  // Persist collapsed state across reloads
+  React.useEffect(() => {
+    const stored = localStorage.getItem('sidebar-collapsed')
+    if (stored === 'true') setCollapsed(true)
+  }, [])
 
-  // Fetch current user profile on mount
+  function toggleCollapsed() {
+    setCollapsed((v) => {
+      localStorage.setItem('sidebar-collapsed', String(!v))
+      return !v
+    })
+  }
+
+  // Load profile + org name
   React.useEffect(() => {
     let cancelled = false
 
-    async function loadProfile() {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-
+    async function load() {
+      const { data: { user } } = await supabase.auth.getUser()
       if (!user || cancelled) return
 
-      const { data } = await supabase
+      const { data: prof } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', user.id)
         .single()
 
-      if (data && !cancelled) {
-        setProfile(data)
+      if (!prof || cancelled) return
+      setProfile(prof)
+
+      if (prof.organization_id) {
+        const { data: org } = await supabase
+          .from('organizations')
+          .select('name')
+          .eq('id', prof.organization_id)
+          .single()
+        if (org && !cancelled) setOrgName(org.name)
       }
     }
 
-    void loadProfile()
-    return () => {
-      cancelled = true
-    }
+    void load()
+    return () => { cancelled = true }
   }, [supabase])
 
   async function handleSignOut() {
@@ -135,115 +132,229 @@ export default function Sidebar() {
     router.push('/auth/login')
   }
 
-  // Close popover on outside click
-  const popoverRef = React.useRef<HTMLDivElement>(null)
-  React.useEffect(() => {
-    if (!popoverOpen) return
-
-    function handleClick(e: MouseEvent) {
-      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
-        setPopoverOpen(false)
-      }
-    }
-
-    document.addEventListener('mousedown', handleClick)
-    return () => document.removeEventListener('mousedown', handleClick)
-  }, [popoverOpen])
+  const W = collapsed ? 48 : 220
 
   return (
     <aside
-      className={cn(
-        'fixed left-0 top-0 z-40 flex h-screen w-[60px] flex-col items-center',
-        'bg-[#13131A] border-r border-[#1E1E2E]',
-        'py-4'
-      )}
+      style={{
+        width: W,
+        minWidth: W,
+        background: 'var(--bg-primary)',
+        borderRight: '1px solid var(--border-primary)',
+        transition: 'width 200ms ease',
+      }}
+      className="fixed left-0 top-0 z-40 flex h-screen flex-col overflow-hidden"
     >
-      {/* Logo mark */}
-      <div className="mb-6 flex h-9 w-9 items-center justify-center rounded-lg bg-[#6366F1]/20">
-        <span className="font-display text-xs font-bold text-[#6366F1]">LP</span>
+      {/* ── Top: logo + app name + org ────────────────────────────────────── */}
+      <div
+        className="flex items-center gap-2.5 px-3 shrink-0"
+        style={{ height: 52, borderBottom: '1px solid var(--border-primary)' }}
+      >
+        {/* LP icon */}
+        <div
+          className="flex items-center justify-center rounded-lg shrink-0"
+          style={{
+            width: 28,
+            height: 28,
+            background: 'var(--accent-light)',
+            color: 'var(--accent-primary)',
+          }}
+        >
+          <span className="text-[11px] font-bold" style={{ fontFamily: "'Syne', sans-serif" }}>
+            LP
+          </span>
+        </div>
+
+        {/* App name + org */}
+        {!collapsed && (
+          <div className="flex-1 min-w-0">
+            <p
+              className="text-sm font-bold truncate leading-tight"
+              style={{ color: 'var(--text-primary)', fontFamily: "'Syne', sans-serif" }}
+            >
+              MonPlateau
+            </p>
+            {orgName && (
+              <p
+                className="text-[11px] truncate leading-tight"
+                style={{ color: 'var(--text-muted)', fontFamily: "'DM Sans', sans-serif" }}
+              >
+                {orgName}
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* Collapse toggle */}
+        <button
+          onClick={toggleCollapsed}
+          className="shrink-0 flex items-center justify-center rounded-md transition-colors duration-100"
+          style={{
+            width: 20,
+            height: 20,
+            color: 'var(--text-muted)',
+            marginLeft: collapsed ? 'auto' : 0,
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--text-secondary)' }}
+          onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-muted)' }}
+          aria-label={collapsed ? 'Développer' : 'Réduire'}
+        >
+          {collapsed
+            ? <ChevronRight size={14} strokeWidth={2} />
+            : <ChevronLeft  size={14} strokeWidth={2} />
+          }
+        </button>
       </div>
 
-      {/* Primary nav */}
-      <nav className="flex flex-1 flex-col items-center gap-2">
+      {/* ── Primary nav ───────────────────────────────────────────────────── */}
+      <nav className="flex flex-col gap-0.5 flex-1 overflow-y-auto px-2 py-3">
         {NAV_ITEMS.map(({ label, href, icon: Icon }) => {
           const active = pathname.startsWith(href)
-          return (
-            <SidebarTooltip key={href} label={label}>
-              <Link href={href} tabIndex={-1}>
-                <IconButton active={active}>
-                  <Icon size={18} strokeWidth={1.8} />
-                </IconButton>
-              </Link>
-            </SidebarTooltip>
+
+          const item = (
+            <Link
+              key={href}
+              href={href}
+              className="flex items-center gap-2.5 rounded-lg transition-colors duration-100 outline-none focus-visible:ring-2"
+              style={{
+                height: 32,
+                padding: collapsed ? '0 8px' : '0 8px',
+                justifyContent: collapsed ? 'center' : undefined,
+                background: active ? 'var(--accent-light)' : 'transparent',
+                color: active ? 'var(--accent-primary)' : 'var(--text-secondary)',
+                fontFamily: "'DM Sans', sans-serif",
+              }}
+              onMouseEnter={(e) => {
+                if (!active) e.currentTarget.style.background = 'var(--bg-hover)'
+              }}
+              onMouseLeave={(e) => {
+                if (!active) e.currentTarget.style.background = 'transparent'
+              }}
+            >
+              <Icon size={16} strokeWidth={active ? 2 : 1.75} className="shrink-0" />
+              {!collapsed && (
+                <span className="text-sm font-medium truncate">{label}</span>
+              )}
+            </Link>
           )
+
+          return collapsed ? (
+            <NavTooltip key={href} label={label}>
+              {item}
+            </NavTooltip>
+          ) : item
         })}
       </nav>
 
-      {/* Bottom items */}
-      <div className="flex flex-col items-center gap-2 mt-auto">
-        {/* Notifications bell */}
-        <SidebarTooltip label="Notifications">
-          <IconButton active={false} className="relative">
-            <Bell size={18} strokeWidth={1.8} />
-            {unreadCount > 0 && (
-              <span
-                className={cn(
-                  'absolute -top-0.5 -right-0.5 flex items-center justify-center',
-                  'min-w-[16px] h-4 px-0.5 rounded-full',
-                  'bg-[#6366F1] text-[#F1F5F9] text-[10px] font-sans font-bold leading-none'
-                )}
-              >
-                {unreadCount > 9 ? '9+' : unreadCount}
-              </span>
-            )}
-          </IconButton>
-        </SidebarTooltip>
-
-        {/* User avatar + popover */}
-        <div ref={popoverRef} className="relative">
-          <SidebarTooltip label={profile?.display_name ?? 'Mon compte'}>
-            <button
-              onClick={() => setPopoverOpen((v) => !v)}
-              className={cn(
-                'flex items-center justify-center rounded-full',
-                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#6366F1] focus-visible:ring-offset-2 focus-visible:ring-offset-[#13131A]',
-                'transition-opacity hover:opacity-80'
-              )}
-              aria-label="Mon compte"
-            >
-              <Avatar
-                src={profile?.avatar_url}
-                name={profile?.display_name}
-                size="sm"
-              />
-            </button>
-          </SidebarTooltip>
-
-          {popoverOpen && (
+      {/* ── Bottom: user ──────────────────────────────────────────────────── */}
+      <div
+        className="shrink-0 px-2 py-3 flex flex-col gap-1"
+        style={{ borderTop: '1px solid var(--border-primary)' }}
+      >
+        {/* User row */}
+        <div
+          className="flex items-center gap-2.5 rounded-lg transition-colors duration-100 cursor-default"
+          style={{
+            height: 36,
+            padding: collapsed ? '0 8px' : '0 8px',
+            justifyContent: collapsed ? 'center' : undefined,
+          }}
+        >
+          {/* Avatar */}
+          {profile?.avatar_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={profile.avatar_url}
+              alt={profile.display_name}
+              className="rounded-full shrink-0 object-cover"
+              style={{ width: 28, height: 28 }}
+            />
+          ) : (
             <div
-              className={cn(
-                'absolute left-full bottom-0 ml-3 z-50 w-52',
-                'bg-[#13131A] border border-[#1E1E2E] rounded-lg shadow-card',
-                'p-3 animate-fade-in'
-              )}
+              className="flex items-center justify-center rounded-full shrink-0 text-xs font-bold"
+              style={{
+                width: 28,
+                height: 28,
+                background: 'var(--accent-light)',
+                color: 'var(--accent-primary)',
+                fontFamily: "'DM Sans', sans-serif",
+              }}
             >
-              <p className="font-display font-semibold text-sm text-[#F1F5F9] truncate mb-0.5">
-                {profile?.display_name ?? '—'}
-              </p>
-              <p className="text-xs text-[#64748B] mb-3">Mon compte</p>
-              <button
-                onClick={handleSignOut}
-                className={cn(
-                  'flex w-full items-center gap-2 px-2 py-1.5 rounded-md text-sm font-sans',
-                  'text-[#64748B] hover:text-[#F1F5F9] hover:bg-white/5 transition-colors'
-                )}
-              >
-                <LogOut size={14} strokeWidth={1.8} />
-                Se déconnecter
-              </button>
+              {profile ? getInitials(profile.display_name) : '…'}
             </div>
           )}
+
+          {/* Name */}
+          {!collapsed && (
+            <span
+              className="flex-1 text-sm font-medium truncate"
+              style={{ color: 'var(--text-primary)', fontFamily: "'DM Sans', sans-serif" }}
+            >
+              {profile?.display_name ?? '…'}
+            </span>
+          )}
+
+          {/* Settings gear */}
+          {!collapsed && (
+            <Link
+              href="/dashboard/settings/organization"
+              className="flex items-center justify-center rounded-md transition-colors duration-100 shrink-0"
+              style={{ width: 24, height: 24, color: 'var(--text-muted)' }}
+              onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--text-secondary)' }}
+              onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-muted)' }}
+              aria-label="Paramètres"
+            >
+              <Settings size={15} strokeWidth={1.75} />
+            </Link>
+          )}
         </div>
+
+        {/* Sign out */}
+        {!collapsed ? (
+          <button
+            onClick={handleSignOut}
+            className="flex items-center gap-2.5 rounded-lg transition-colors duration-100 text-sm"
+            style={{
+              height: 32,
+              padding: '0 8px',
+              color: 'var(--text-muted)',
+              fontFamily: "'DM Sans', sans-serif",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'var(--bg-hover)'
+              e.currentTarget.style.color = 'var(--text-secondary)'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'transparent'
+              e.currentTarget.style.color = 'var(--text-muted)'
+            }}
+          >
+            <LogOut size={15} strokeWidth={1.75} className="shrink-0" />
+            <span>Se déconnecter</span>
+          </button>
+        ) : (
+          <NavTooltip label="Se déconnecter">
+            <button
+              onClick={handleSignOut}
+              className="flex items-center justify-center rounded-lg transition-colors duration-100"
+              style={{
+                height: 32,
+                width: '100%',
+                color: 'var(--text-muted)',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'var(--bg-hover)'
+                e.currentTarget.style.color = 'var(--text-secondary)'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'transparent'
+                e.currentTarget.style.color = 'var(--text-muted)'
+              }}
+            >
+              <LogOut size={15} strokeWidth={1.75} />
+            </button>
+          </NavTooltip>
+        )}
       </div>
     </aside>
   )
