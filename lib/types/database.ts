@@ -1,6 +1,6 @@
 export type PlanType = "free" | "pro" | "enterprise";
 export type UserRole = "admin" | "member";
-export type ZoneType = "open_space" | "meeting_room" | "focus" | "social" | "break";
+export type ZoneType = "open_space" | "meeting_room" | "focus" | "social" | "break" | "custom";
 export type MapTheme = "modern" | "zen" | "startup";
 export type WorkScheduleStatus = "office" | "remote" | "vacation" | "sick" | "absent" | "rtt";
 export type TeamsStatus =

@@ -188,6 +188,7 @@ export const ZONE_ICONS: Record<string, string> = {
   focus: "🎯",
   social: "💬",
   break: "☕",
+  custom: "📌",
 };
 
 export const ZONE_COLORS: Record<string, string> = {
@@ -196,12 +197,14 @@ export const ZONE_COLORS: Record<string, string> = {
   focus: "rgba(16,185,129,0.18)",
   social: "rgba(236,72,153,0.18)",
   break: "rgba(245,158,11,0.18)",
+  custom: "rgba(100,116,139,0.18)",
 };
 
 export const ZONE_ACCENT_COLORS: Record<string, string> = {
   open_space: '#6366F1',
   meeting_room: '#22D3EE',
   focus: '#10B981',
-  social: '#F59E0B',
-  break: '#8B5CF6',
+  social: '#EC4899',
+  break: '#F59E0B',
+  custom: '#64748B',
 };

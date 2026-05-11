@@ -9,7 +9,7 @@ const NAV = [
   { href: "/dashboard/settings/organization", label: "Organisation", icon: Building2 },
   { href: "/dashboard/settings/members", label: "Membres", icon: Users },
   { href: "/dashboard/settings/rooms", label: "Salles", icon: DoorOpen },
-  { href: "/dashboard/settings/office-editor", label: "Plan du bureau", icon: LayoutTemplate },
+  { href: "/dashboard/settings/office-editor", label: "Éditeur", icon: LayoutTemplate },
   { href: "/dashboard/settings/export", label: "Export RH", icon: FileDown },
   { href: "/dashboard/settings/billing", label: "Facturation", icon: CreditCard },
 ];

@@ -27,10 +27,11 @@ const DEFAULT_DECO_SIZE = 28
 
 const ZONE_TYPES: { type: ZoneType; label: string }[] = [
   { type: 'open_space',   label: 'Open Space' },
-  { type: 'meeting_room', label: 'Salle réunion' },
+  { type: 'meeting_room', label: 'Meeting Room' },
   { type: 'focus',        label: 'Focus Zone' },
+  { type: 'break',        label: 'Café' },
   { type: 'social',       label: 'Social' },
-  { type: 'break',        label: 'Pause' },
+  { type: 'custom',       label: 'Custom' },
 ]
 
 const DECORATION_ITEMS = [
@@ -248,6 +249,206 @@ function DecoPanel({
   )
 }
 
+// ─── Double-click edit modal ──────────────────────────────────────────────────
+
+function EditZoneModal({
+  zone,
+  onSave,
+  onClose,
+}: {
+  zone: EditableZone
+  onSave: (changes: Partial<EditableZone>) => void
+  onClose: () => void
+}) {
+  const [name, setName] = useState(zone.name)
+  const [type, setType] = useState<ZoneType>(zone.type)
+  const [capacity, setCapacity] = useState<number | null>(zone.max_capacity)
+
+  function handleSave() {
+    onSave({
+      name: name.trim() || zone.name,
+      type,
+      color: ZONE_COLORS[type] ?? ZONE_COLORS.custom,
+      max_capacity: capacity,
+    })
+    onClose()
+  }
+
+  const inputStyle: React.CSSProperties = {
+    background: 'rgba(255,255,255,0.04)',
+    border: '1px solid rgba(255,255,255,0.08)',
+    color: '#F1F5F9',
+    fontFamily: "'DM Sans', sans-serif",
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center"
+      style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)' }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
+    >
+      <div
+        className="w-full max-w-sm rounded-2xl p-6 flex flex-col gap-5"
+        style={{
+          background: '#13131A',
+          border: '1px solid rgba(255,255,255,0.08)',
+          boxShadow: '0 24px 64px rgba(0,0,0,0.7)',
+        }}
+      >
+        <div>
+          <h3 className="font-bold text-base" style={{ color: '#F1F5F9', fontFamily: "'Syne', sans-serif" }}>
+            Modifier la zone
+          </h3>
+          <p className="text-xs mt-0.5" style={{ color: '#64748B' }}>Nom, type et capacité</p>
+        </div>
+
+        {/* Name */}
+        <div className="flex flex-col gap-1.5">
+          <label className="text-xs font-medium" style={{ color: '#64748B', fontFamily: "'DM Sans', sans-serif" }}>Nom</label>
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            autoFocus
+            className="h-10 rounded-xl px-3 text-sm outline-none"
+            style={inputStyle}
+            onFocus={(e) => { e.currentTarget.style.border = '1px solid rgba(99,102,241,0.5)' }}
+            onBlur={(e) => { e.currentTarget.style.border = '1px solid rgba(255,255,255,0.08)' }}
+            onKeyDown={(e) => { if (e.key === 'Enter') handleSave() }}
+          />
+        </div>
+
+        {/* Type */}
+        <div className="flex flex-col gap-1.5">
+          <label className="text-xs font-medium" style={{ color: '#64748B', fontFamily: "'DM Sans', sans-serif" }}>Type</label>
+          <div className="grid grid-cols-2 gap-1.5">
+            {ZONE_TYPES.map(({ type: t, label }) => {
+              const accent = ZONE_ACCENT_COLORS[t] ?? '#64748B'
+              const active = type === t
+              return (
+                <button
+                  key={t}
+                  onClick={() => setType(t)}
+                  className="flex items-center gap-2 h-9 px-3 rounded-xl text-xs font-medium transition-all"
+                  style={{
+                    background: active ? hexToRgba(accent, 0.2) : 'rgba(255,255,255,0.03)',
+                    color: active ? accent : '#64748B',
+                    border: `1px solid ${active ? hexToRgba(accent, 0.4) : 'rgba(255,255,255,0.06)'}`,
+                    fontFamily: "'DM Sans', sans-serif",
+                  }}
+                >
+                  <span>{ZONE_ICONS[t]}</span>
+                  <span>{label}</span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* Capacity */}
+        <div className="flex flex-col gap-1.5">
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-medium" style={{ color: '#64748B', fontFamily: "'DM Sans', sans-serif" }}>Capacité max</label>
+            <button
+              onClick={() => setCapacity(capacity === null ? 10 : null)}
+              className="text-xs transition-colors"
+              style={{ color: capacity === null ? '#4ADE80' : '#64748B', fontFamily: "'DM Sans', sans-serif" }}
+            >
+              {capacity === null ? '∞ illimitée' : 'limiter'}
+            </button>
+          </div>
+          {capacity !== null && (
+            <input
+              type="number"
+              min={1}
+              value={capacity}
+              onChange={(e) => setCapacity(Math.max(1, parseInt(e.target.value) || 1))}
+              className="h-10 rounded-xl px-3 text-sm outline-none"
+              style={inputStyle}
+              onFocus={(e) => { e.currentTarget.style.border = '1px solid rgba(99,102,241,0.5)' }}
+              onBlur={(e) => { e.currentTarget.style.border = '1px solid rgba(255,255,255,0.08)' }}
+            />
+          )}
+        </div>
+
+        <div className="flex gap-3">
+          <button
+            onClick={onClose}
+            className="flex-1 h-10 rounded-xl text-sm font-medium transition-colors"
+            style={{ background: 'rgba(255,255,255,0.04)', color: '#64748B', border: '1px solid rgba(255,255,255,0.06)', fontFamily: "'DM Sans', sans-serif" }}
+          >
+            Annuler
+          </button>
+          <button
+            onClick={handleSave}
+            className="flex-1 h-10 rounded-xl text-sm font-semibold transition-all"
+            style={{ background: 'linear-gradient(135deg, #6366F1, #818CF8)', color: '#fff', fontFamily: "'DM Sans', sans-serif", boxShadow: '0 0 20px rgba(99,102,241,0.3)' }}
+          >
+            Enregistrer
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Confirm reset dialog ─────────────────────────────────────────────────────
+
+function ConfirmResetDialog({
+  onConfirm,
+  onCancel,
+}: {
+  onConfirm: () => void
+  onCancel: () => void
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center"
+      style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)' }}
+      onClick={(e) => { if (e.target === e.currentTarget) onCancel() }}
+    >
+      <div
+        className="w-full max-w-xs rounded-2xl p-6 flex flex-col gap-5"
+        style={{
+          background: '#13131A',
+          border: '1px solid rgba(255,255,255,0.08)',
+          boxShadow: '0 24px 64px rgba(0,0,0,0.7)',
+        }}
+      >
+        <div className="flex flex-col gap-2">
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl" style={{ background: 'rgba(239,68,68,0.12)' }}>
+            ↩️
+          </div>
+          <h3 className="font-bold text-base" style={{ color: '#F1F5F9', fontFamily: "'Syne', sans-serif" }}>
+            Réinitialiser le plan ?
+          </h3>
+          <p className="text-sm" style={{ color: '#64748B', fontFamily: "'DM Sans', sans-serif" }}>
+            Toutes les modifications non sauvegardées seront perdues.
+          </p>
+        </div>
+        <div className="flex gap-3">
+          <button
+            onClick={onCancel}
+            className="flex-1 h-10 rounded-xl text-sm font-medium"
+            style={{ background: 'rgba(255,255,255,0.04)', color: '#64748B', border: '1px solid rgba(255,255,255,0.06)', fontFamily: "'DM Sans', sans-serif" }}
+          >
+            Annuler
+          </button>
+          <button
+            onClick={onConfirm}
+            className="flex-1 h-10 rounded-xl text-sm font-semibold transition-all"
+            style={{ background: 'rgba(239,68,68,0.15)', color: '#F87171', border: '1px solid rgba(239,68,68,0.3)', fontFamily: "'DM Sans', sans-serif" }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(239,68,68,0.25)' }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(239,68,68,0.15)' }}
+          >
+            Réinitialiser
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Main editor component ────────────────────────────────────────────────────
 
 interface Props {
@@ -266,9 +467,11 @@ export default function OfficeEditorCanvas({ officeMap, initialZones }: Props) {
     const raw = officeMap.layout_json?.decorations
     return Array.isArray(raw) ? (raw as Decoration[]) : []
   })
-  const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [addMode, setAddMode]       = useState<AddMode>(null)
-  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const [selectedId, setSelectedId]       = useState<string | null>(null)
+  const [addMode, setAddMode]             = useState<AddMode>(null)
+  const [saveStatus, setSaveStatus]       = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const [editModalZone, setEditModalZone] = useState<EditableZone | null>(null)
+  const [showConfirmReset, setShowConfirmReset] = useState(false)
 
   // Track original IDs so we can DELETE removed zones on save
   const originalIds = useRef<Set<string>>(new Set(initialZones.map((z) => z.id)))
@@ -386,6 +589,12 @@ export default function OfficeEditorCanvas({ officeMap, initialZones }: Props) {
     )
   }
 
+  function handleZoneDblClick(id: string) {
+    if (addMode) return
+    const zone = zones.find((z) => z.id === id)
+    if (zone) setEditModalZone(zone)
+  }
+
   function handleDecorationDragEnd(id: string, e: Konva.KonvaEventObject<MouseEvent>) {
     const node = e.target
     setDecorations((prev) =>
@@ -417,6 +626,7 @@ export default function OfficeEditorCanvas({ officeMap, initialZones }: Props) {
     setSelectedId(null)
     setAddMode(null)
     setSaveStatus('idle')
+    setShowConfirmReset(false)
   }, [initialZones, officeMap.layout_json])
 
   async function handleSave() {
@@ -506,14 +716,14 @@ export default function OfficeEditorCanvas({ officeMap, initialZones }: Props) {
             </span>
           )}
           <button
-            onClick={handleReset}
+            onClick={() => setShowConfirmReset(true)}
             className="flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-medium transition-colors"
             style={{ background: 'rgba(255,255,255,0.04)', color: '#64748B', border: '1px solid rgba(255,255,255,0.06)', fontFamily: "'DM Sans', sans-serif" }}
             onMouseEnter={(e) => { e.currentTarget.style.color = '#F1F5F9' }}
             onMouseLeave={(e) => { e.currentTarget.style.color = '#64748B' }}
           >
             <RotateCcw size={12} />
-            Annuler
+            Réinitialiser
           </button>
           <button
             onClick={() => void handleSave()}
@@ -652,6 +862,10 @@ export default function OfficeEditorCanvas({ officeMap, initialZones }: Props) {
                         setSelectedId(zone.id)
                       }
                     }}
+                    onDblClick={(e) => {
+                      e.cancelBubble = true
+                      handleZoneDblClick(zone.id)
+                    }}
                   />
                 )
               })}
@@ -769,12 +983,32 @@ export default function OfficeEditorCanvas({ officeMap, initialZones }: Props) {
                 🗺️
               </div>
               <p className="text-[11px] leading-relaxed" style={{ color: '#334155', fontFamily: "'DM Sans', sans-serif" }}>
-                Sélectionnez une zone ou une décoration pour modifier ses propriétés.
+                Cliquez pour sélectionner, double-cliquez pour éditer.
               </p>
             </div>
           )}
         </div>
       </div>
+
+      {/* Double-click edit modal */}
+      {editModalZone && (
+        <EditZoneModal
+          zone={editModalZone}
+          onSave={(changes) => {
+            updateZone(editModalZone.id, changes)
+            setEditModalZone(null)
+          }}
+          onClose={() => setEditModalZone(null)}
+        />
+      )}
+
+      {/* Reset confirmation dialog */}
+      {showConfirmReset && (
+        <ConfirmResetDialog
+          onConfirm={handleReset}
+          onCancel={() => setShowConfirmReset(false)}
+        />
+      )}
     </div>
   )
 }
