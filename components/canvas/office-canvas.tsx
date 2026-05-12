@@ -1,23 +1,13 @@
 'use client';
 
-import React, {
-  useEffect,
-  useRef,
-  useState,
-  useCallback,
-  useMemo,
-  memo,
-} from 'react';
-import { Stage, Layer, Rect, Circle, Text, Group } from 'react-konva';
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import { Stage, Layer, Line, Rect, Text, Group } from 'react-konva';
 import Konva from 'konva';
 import { useOfficeStore } from '@/lib/store/office';
-import { ZONE_ICONS, ZONE_ACCENT_COLORS } from '@/lib/canvas/layouts';
-import { cn, debounce } from '@/lib/utils';
+import { ZONE_ACCENT_COLORS } from '@/lib/canvas/layouts';
 import type { Zone, AvatarPosition, Profile, WorkScheduleStatus, Decoration } from '@/lib/types/database';
 
-// ---------------------------------------------------------------------------
-// Public prop types
-// ---------------------------------------------------------------------------
+// ─── Public prop types ────────────────────────────────────────────────────────
 
 export interface OfficeCanvasProps {
   officeMapId: string;
@@ -32,51 +22,38 @@ export interface OfficeCanvasProps {
   decorations?: Decoration[];
 }
 
-// ---------------------------------------------------------------------------
-// Internal helpers
-// ---------------------------------------------------------------------------
+// ─── Isometric math ───────────────────────────────────────────────────────────
 
-interface TooltipState {
-  visible: boolean;
-  /** Stage-relative X (we convert to page coords when rendering) */
-  pageX: number;
-  pageY: number;
-  zoneId: string;
+const TILE_W = 64;
+const TILE_H = 32;
+const GRID_SIZE = 20;
+const MIN_SCALE = 0.5;
+const MAX_SCALE = 2.0;
+
+function toIso(x: number, y: number) {
+  return {
+    sx: (x - y) * (TILE_W / 2),
+    sy: (x + y) * (TILE_H / 2),
+  };
 }
 
-function hashColor(userId: string): string {
-  let h = 0;
-  for (let i = 0; i < userId.length; i++) {
-    h = (h << 5) - h + userId.charCodeAt(i);
-    h |= 0;
-  }
-  return `hsl(${Math.abs(h) % 360}, 60%, 55%)`;
+// Flat-canvas pixel coords → iso grid tile coords
+function zoneToGrid(zone: Zone) {
+  return {
+    gx: Math.max(0, Math.round(zone.x / TILE_W)),
+    gy: Math.max(0, Math.round(zone.y / TILE_W)),
+    gw: Math.max(2, Math.round(zone.width / TILE_W)),
+    gh: Math.max(2, Math.round(zone.height / TILE_W)),
+  };
 }
 
-function getInitials(name: string): string {
-  return name
-    .split(' ')
-    .map((n) => n[0] ?? '')
-    .join('')
-    .toUpperCase()
-    .slice(0, 2);
-}
-
-function statusColor(status: string | null): string {
-  switch (status) {
-    case 'Available':
-      return '#22C55E';
-    case 'Busy':
-    case 'InACall':
-    case 'InAMeeting':
-    case 'DoNotDisturb':
-      return '#EF4444';
-    case 'Away':
-    case 'BeRightBack':
-      return '#EAB308';
-    default:
-      return '#6B7280';
-  }
+// Clockwise diamond points for tile at (gx, gy)
+function tileDiamond(gx: number, gy: number): number[] {
+  const T = toIso(gx, gy);
+  const R = toIso(gx + 1, gy);
+  const B = toIso(gx + 1, gy + 1);
+  const L = toIso(gx, gy + 1);
+  return [T.sx, T.sy, R.sx, R.sy, B.sx, B.sy, L.sx, L.sy];
 }
 
 function hexToRgba(hex: string, alpha: number): string {
@@ -86,589 +63,271 @@ function hexToRgba(hex: string, alpha: number): string {
   return `rgba(${r},${g},${b},${alpha})`;
 }
 
-// ---------------------------------------------------------------------------
-// ZoneShape
-// ---------------------------------------------------------------------------
+// ─── Camera ───────────────────────────────────────────────────────────────────
 
-interface ZoneShapeProps {
-  zone: Zone;
-  isSelected: boolean;
-  isBooked: boolean;
-  occupantCount: number;
-  onZoneEnter: (zone: Zone) => void;
-  onSelect: (zoneId: string) => void;
-  onHoverStart: (zoneId: string, pageX: number, pageY: number) => void;
-  onHoverMove: (pageX: number, pageY: number) => void;
-  onHoverEnd: () => void;
-}
+function computeFitCamera(zones: Zone[], width: number, height: number) {
+  let minSx = Infinity, maxSx = -Infinity;
+  let minSy = Infinity, maxSy = -Infinity;
 
-const BOOKED_COLOR = '#F59E0B';
-
-const ZoneShape = memo(function ZoneShape({
-  zone,
-  isSelected,
-  isBooked,
-  occupantCount,
-  onZoneEnter,
-  onSelect,
-  onHoverStart,
-  onHoverMove,
-  onHoverEnd,
-}: ZoneShapeProps) {
-  const [hovered, setHovered] = useState(false);
-  const accent = isBooked ? BOOKED_COLOR : (ZONE_ACCENT_COLORS[zone.type] ?? '#6366F1');
-
-  const getPagePos = (e: Konva.KonvaEventObject<MouseEvent>) => ({
-    px: e.evt.clientX,
-    py: e.evt.clientY,
-  });
-
-  return (
-    <Group
-      x={zone.x}
-      y={zone.y}
-      onMouseEnter={(e) => {
-        setHovered(true);
-        const { px, py } = getPagePos(e);
-        onHoverStart(zone.id, px, py);
-      }}
-      onMouseMove={(e) => {
-        const { px, py } = getPagePos(e);
-        onHoverMove(px, py);
-      }}
-      onMouseLeave={() => {
-        setHovered(false);
-        onHoverEnd();
-      }}
-      onClick={() => onSelect(zone.id)}
-      onDblClick={() => onZoneEnter(zone)}
-    >
-      {/* Main background with gradient */}
-      <Rect
-        width={zone.width}
-        height={zone.height}
-        fillLinearGradientStartPoint={{ x: 0, y: 0 }}
-        fillLinearGradientEndPoint={{ x: 0, y: zone.height }}
-        fillLinearGradientColorStops={[
-          0, hexToRgba(accent, 0.18),
-          1, hexToRgba(accent, 0.06),
-        ]}
-        stroke={isSelected ? accent : hovered ? hexToRgba(accent, 0.6) : hexToRgba(accent, 0.3)}
-        strokeWidth={isSelected ? 2 : 1}
-        cornerRadius={12}
-        shadowColor={accent}
-        shadowBlur={hovered || isSelected ? 18 : 0}
-        shadowOpacity={0.4}
-        shadowEnabled={hovered || isSelected}
-      />
-      {/* Top accent border */}
-      <Rect
-        x={12}
-        y={0}
-        width={zone.width - 24}
-        height={3}
-        fill={accent}
-        cornerRadius={2}
-        listening={false}
-      />
-      {/* Zone icon */}
-      <Text
-        text={ZONE_ICONS[zone.type] ?? ''}
-        y={12}
-        width={zone.width}
-        align="center"
-        fontSize={20}
-        listening={false}
-      />
-      {/* Zone name — Syne bold */}
-      <Text
-        text={zone.name}
-        y={40}
-        width={zone.width}
-        align="center"
-        fontSize={13}
-        fontFamily="'Syne', sans-serif"
-        fontStyle="bold"
-        fill="#F1F5F9"
-        listening={false}
-      />
-      {/* Capacity pill */}
-      {zone.max_capacity != null && (
-        <Group x={zone.width / 2 - 24} y={zone.height - 26}>
-          <Rect
-            width={48}
-            height={18}
-            fill={hexToRgba(accent, 0.2)}
-            stroke={hexToRgba(accent, 0.5)}
-            strokeWidth={1}
-            cornerRadius={9}
-          />
-          <Text
-            text={`${occupantCount}/${zone.max_capacity}`}
-            width={48}
-            height={18}
-            align="center"
-            verticalAlign="middle"
-            fontSize={10}
-            fill={accent}
-            fontFamily="'DM Sans', sans-serif"
-            listening={false}
-          />
-        </Group>
-      )}
-      {/* Booked indicator */}
-      {isBooked && (
-        <Group x={zone.width / 2 - 28} y={zone.max_capacity != null ? zone.height - 48 : zone.height - 26}>
-          <Rect
-            width={56}
-            height={18}
-            fill={hexToRgba(BOOKED_COLOR, 0.2)}
-            stroke={hexToRgba(BOOKED_COLOR, 0.6)}
-            strokeWidth={1}
-            cornerRadius={9}
-          />
-          <Text
-            text="🔒 Réservé"
-            width={56}
-            height={18}
-            align="center"
-            verticalAlign="middle"
-            fontSize={9}
-            fill={BOOKED_COLOR}
-            fontFamily="'DM Sans', sans-serif"
-            listening={false}
-          />
-        </Group>
-      )}
-    </Group>
-  );
-});
-
-// ---------------------------------------------------------------------------
-// AvatarCircle
-// ---------------------------------------------------------------------------
-
-const SCHEDULE_BADGE: Partial<Record<WorkScheduleStatus, string>> = {
-  remote:   '🏠',
-  vacation: '🌴',
-  sick:     '🤒',
-  absent:   '❌',
-  rtt:      '🛌',
-};
-
-interface AvatarCircleProps {
-  position: AvatarPosition;
-  profile: Profile | undefined;
-  isCurrent: boolean;
-  isSpeaking: boolean;
-  scheduleStatus?: WorkScheduleStatus;
-  onDragEnd: (x: number, y: number) => void;
-  onClick?: () => void;
-}
-
-const AvatarCircle = memo(function AvatarCircle({
-  position,
-  profile,
-  isCurrent,
-  isSpeaking,
-  scheduleStatus,
-  onDragEnd,
-  onClick,
-}: AvatarCircleProps) {
-  const groupRef = useRef<Konva.Group>(null);
-  const pulseRef = useRef<Konva.Circle>(null);
-  const moveTweenRef = useRef<Konva.Tween | null>(null);
-  const pulseTweenRef = useRef<Konva.Tween | null>(null);
-  // Track previous position so we don't tween on first mount.
-  const prevPosRef = useRef<{ x: number; y: number } | null>(null);
-
-  const avatarColor = hashColor(position.user_id);
-  const initials = profile ? getInitials(profile.display_name) : '?';
-  const ringColor = statusColor(profile?.teams_status ?? null);
-  const scheduleBadge = scheduleStatus ? SCHEDULE_BADGE[scheduleStatus] : null;
-  const avatarOpacity = !scheduleStatus || scheduleStatus === 'office' ? 1
-    : scheduleStatus === 'remote' ? 0.85
-    : 0.45;
-
-  // Position interpolation tween for remote users.
-  useEffect(() => {
-    const node = groupRef.current;
-    if (!node || isCurrent) {
-      // For current user, keep node in sync via draggable; just update ref.
-      prevPosRef.current = { x: position.x, y: position.y };
-      return;
+  function expand(gx: number, gy: number, gw: number, gh: number) {
+    for (const [cx, cy] of [
+      [gx, gy], [gx + gw, gy], [gx + gw, gy + gh], [gx, gy + gh],
+    ] as [number, number][]) {
+      const iso = toIso(cx, cy);
+      minSx = Math.min(minSx, iso.sx);
+      maxSx = Math.max(maxSx, iso.sx);
+      minSy = Math.min(minSy, iso.sy);
+      maxSy = Math.max(maxSy, iso.sy);
     }
+  }
 
-    const prev = prevPosRef.current;
-    prevPosRef.current = { x: position.x, y: position.y };
-
-    if (!prev) {
-      // First mount: jump directly.
-      node.x(position.x);
-      node.y(position.y);
-      return;
+  if (zones.length > 0) {
+    for (const z of zones) {
+      const { gx, gy, gw, gh } = zoneToGrid(z);
+      expand(gx, gy, gw, gh);
     }
+    // add breathing room around zones
+    minSx -= TILE_W * 2; maxSx += TILE_W * 2;
+    minSy -= TILE_H * 3; maxSy += TILE_H * 3;
+  } else {
+    expand(0, 0, GRID_SIZE, GRID_SIZE);
+  }
 
-    if (prev.x === position.x && prev.y === position.y) return;
+  const isoW = maxSx - minSx;
+  const isoH = maxSy - minSy;
+  if (isoW <= 0 || isoH <= 0) return { x: width / 2, y: height / 2, scale: 1 };
 
-    moveTweenRef.current?.destroy();
-    moveTweenRef.current = new Konva.Tween({
-      node,
-      x: position.x,
-      y: position.y,
-      duration: 0.2,
-      easing: Konva.Easings.EaseInOut,
-    });
-    moveTweenRef.current.play();
-  }, [position.x, position.y, isCurrent]);
-
-  // Cleanup move tween on unmount.
-  useEffect(() => {
-    return () => {
-      moveTweenRef.current?.destroy();
-    };
-  }, []);
-
-  // Speaking pulse animation.
-  useEffect(() => {
-    const pulse = pulseRef.current;
-    if (!pulse) return;
-
-    if (!isSpeaking) {
-      pulseTweenRef.current?.destroy();
-      pulse.radius(22);
-      pulse.opacity(0);
-      return;
-    }
-
-    let active = true;
-
-    const tick = () => {
-      if (!active || !pulse) return;
-      pulse.radius(22);
-      pulse.opacity(0.6);
-      pulseTweenRef.current?.destroy();
-      pulseTweenRef.current = new Konva.Tween({
-        node: pulse,
-        radius: 30,
-        opacity: 0,
-        duration: 0.9,
-        easing: Konva.Easings.EaseOut,
-        onFinish: tick,
-      });
-      pulseTweenRef.current.play();
-    };
-
-    tick();
-
-    return () => {
-      active = false;
-      pulseTweenRef.current?.destroy();
-    };
-  }, [isSpeaking]);
-
-  const handleDragEnd = useCallback(
-    (e: Konva.KonvaEventObject<DragEvent>) => {
-      onDragEnd(e.target.x(), e.target.y());
-    },
-    [onDragEnd]
+  const padding = 64;
+  const scale = Math.min(
+    Math.max((width - padding * 2) / isoW, MIN_SCALE),
+    MAX_SCALE
   );
-
-  return (
-    <Group
-      ref={groupRef}
-      x={position.x}
-      y={position.y}
-      opacity={avatarOpacity}
-      draggable={isCurrent}
-      onDragEnd={isCurrent ? handleDragEnd : undefined}
-      onClick={!isCurrent ? onClick : undefined}
-      onMouseEnter={!isCurrent && onClick ? (e) => { e.target.getStage()!.container().style.cursor = 'pointer'; } : undefined}
-      onMouseLeave={!isCurrent && onClick ? (e) => { e.target.getStage()!.container().style.cursor = 'default'; } : undefined}
-    >
-      {/* Speaking pulse ring (animated) */}
-      <Circle
-        ref={pulseRef}
-        radius={22}
-        fill="transparent"
-        stroke="#22D3EE"
-        strokeWidth={2.5}
-        opacity={0}
-        listening={false}
-      />
-      {/* Status ring */}
-      <Circle
-        radius={22}
-        fill="transparent"
-        stroke={ringColor}
-        strokeWidth={2}
-        listening={false}
-      />
-      {/* Avatar body */}
-      <Circle radius={20} fill={avatarColor} />
-      {/* Initials */}
-      <Text
-        text={initials}
-        fontSize={11}
-        fontFamily="Inter, sans-serif"
-        fill="#FFFFFF"
-        fontStyle="bold"
-        width={40}
-        height={40}
-        offsetX={20}
-        offsetY={20}
-        align="center"
-        verticalAlign="middle"
-        listening={false}
-      />
-      {/* Current-user cyan dot indicator */}
-      {isCurrent && (
-        <Circle
-          x={14}
-          y={-14}
-          radius={5}
-          fill="#22D3EE"
-          stroke="#0A0A0F"
-          strokeWidth={1.5}
-          listening={false}
-        />
-      )}
-      {/* Schedule status badge */}
-      {scheduleBadge && (
-        <Text
-          text={scheduleBadge}
-          fontSize={13}
-          x={8}
-          y={8}
-          listening={false}
-        />
-      )}
-    </Group>
-  );
-});
-
-// ---------------------------------------------------------------------------
-// ZoneTooltip — rendered in DOM, outside the Stage
-// ---------------------------------------------------------------------------
-
-interface ZoneTooltipProps {
-  tooltip: TooltipState;
-  zones: Zone[];
-  profiles: Map<string, Profile>;
-  positions: Map<string, AvatarPosition>;
+  return {
+    x: width / 2 - (minSx + isoW / 2) * scale,
+    y: height / 2 - (minSy + isoH / 2) * scale,
+    scale,
+  };
 }
 
-function ZoneTooltip({ tooltip, zones, profiles, positions }: ZoneTooltipProps) {
-  if (!tooltip.visible) return null;
-
-  const zone = zones.find((z) => z.id === tooltip.zoneId);
-  if (!zone) return null;
-
-  const occupants = Array.from(positions.values()).filter(
-    (p) => p.zone_id === zone.id && p.is_online
-  );
-
-  return (
-    <div
-      className="pointer-events-none fixed z-50 max-w-[200px] rounded-lg border border-[#1E1E2E] bg-[#13131A] px-3 py-2 text-left shadow-xl"
-      style={{ left: tooltip.pageX + 14, top: tooltip.pageY + 14 }}
-    >
-      <p className="mb-1 text-xs font-semibold text-slate-200">
-        {ZONE_ICONS[zone.type]} {zone.name}
-      </p>
-      {occupants.length === 0 ? (
-        <p className="text-xs text-slate-500">Personne ici</p>
-      ) : (
-        <ul className="space-y-0.5">
-          {occupants.map((p) => {
-            const prof = profiles.get(p.user_id);
-            return (
-              <li
-                key={p.user_id}
-                className="flex items-center gap-1.5 text-xs text-slate-300"
-              >
-                <span
-                  className="inline-block h-1.5 w-1.5 shrink-0 rounded-full"
-                  style={{
-                    background: statusColor(prof?.teams_status ?? null),
-                  }}
-                />
-                {prof?.display_name ?? p.user_id}
-              </li>
-            );
-          })}
-        </ul>
-      )}
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// OfficeCanvas — main export
-// ---------------------------------------------------------------------------
+// ─── Main canvas ──────────────────────────────────────────────────────────────
 
 export default function OfficeCanvas({
-  officeMapId: _officeMapId,
-  currentUserId,
-  currentUserProfile: _currentUserProfile,
-  onZoneEnter,
-  onAvatarMove,
-  onAvatarClick,
-  speakingUserIds,
-  workSchedules,
-  bookedZoneIds,
-  decorations,
+  onZoneEnter: _onZoneEnter,
+  onAvatarMove: _onAvatarMove,
+  onAvatarClick: _onAvatarClick,
+  speakingUserIds: _speakingUserIds,
+  workSchedules: _workSchedules,
+  bookedZoneIds: _bookedZoneIds,
+  decorations: _decorations,
 }: OfficeCanvasProps) {
-  const store = useOfficeStore();
+  const { zones, camera, setCamera } = useOfficeStore();
+  const stageRef = useRef<Konva.Stage>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
-  const [tooltip, setTooltip] = useState<TooltipState>({
-    visible: false,
-    pageX: 0,
-    pageY: 0,
-    zoneId: '',
-  });
+  const fitDone = useRef(false);
 
-  // ResizeObserver — keeps Stage filling the container.
+  // Track container size
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
     const ro = new ResizeObserver((entries) => {
       const e = entries[0];
-      if (e) {
-        setDimensions({
-          width: e.contentRect.width,
-          height: e.contentRect.height,
-        });
-      }
+      if (e) setDimensions({ width: e.contentRect.width, height: e.contentRect.height });
     });
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
 
-  // Debounced callback so we don't spam Supabase Realtime on every drag pixel.
-  const debouncedMove = useMemo(
-    () => debounce((x: number, y: number) => onAvatarMove(x, y), 100),
-    [onAvatarMove]
-  );
+  // Fit camera to zones on first valid render
+  useEffect(() => {
+    if (fitDone.current || dimensions.width < 100) return;
+    const cam = computeFitCamera(zones, dimensions.width, dimensions.height);
+    setCamera(cam);
+    fitDone.current = true;
+  }, [dimensions, zones, setCamera]);
 
-  const handleAvatarDrop = useCallback(
-    (x: number, y: number) => debouncedMove(x, y),
-    [debouncedMove]
-  );
+  // Sync Zustand camera → Konva Stage imperatively (avoids re-render on every wheel tick)
+  useEffect(() => {
+    const stage = stageRef.current;
+    if (!stage) return;
+    stage.x(camera.x);
+    stage.y(camera.y);
+    stage.scaleX(camera.scale);
+    stage.scaleY(camera.scale);
+    stage.batchDraw();
+  }, [camera]);
 
-  // Tooltip callbacks
-  const handleHoverStart = useCallback(
-    (zoneId: string, pageX: number, pageY: number) => {
-      setTooltip({ visible: true, pageX, pageY, zoneId });
-    },
-    []
-  );
-
-  const handleHoverMove = useCallback((pageX: number, pageY: number) => {
-    setTooltip((t) => ({ ...t, pageX, pageY }));
-  }, []);
-
-  const handleHoverEnd = useCallback(() => {
-    setTooltip((t) => ({ ...t, visible: false }));
-  }, []);
-
-  const positionsList = useMemo(
-    () => Array.from(store.positions.values()),
-    [store.positions]
-  );
-
-  const occupantCounts = useMemo(() => {
-    const counts = new Map<string, number>();
-    store.positions.forEach((pos) => {
-      if (pos.is_online && pos.zone_id) {
-        counts.set(pos.zone_id, (counts.get(pos.zone_id) ?? 0) + 1);
+  // Per-tile zone color map
+  const tileColorMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const zone of zones) {
+      const { gx, gy, gw, gh } = zoneToGrid(zone);
+      const color = ZONE_ACCENT_COLORS[zone.type] ?? '#5B5BD6';
+      for (let i = gx; i < gx + gw; i++) {
+        for (let j = gy; j < gy + gh; j++) {
+          map.set(`${i},${j}`, color);
+        }
       }
+    }
+    return map;
+  }, [zones]);
+
+  // Floor tiles (400 diamonds)
+  const tiles = useMemo(() => {
+    const result: React.ReactElement[] = [];
+    for (let gy = 0; gy < GRID_SIZE; gy++) {
+      for (let gx = 0; gx < GRID_SIZE; gx++) {
+        const color = tileColorMap.get(`${gx},${gy}`);
+        result.push(
+          <Line
+            key={`${gx},${gy}`}
+            points={tileDiamond(gx, gy)}
+            closed
+            fill={color ? hexToRgba(color, 0.15) : '#F0F0F2'}
+            stroke="#E4E4E7"
+            strokeWidth={0.5}
+            listening={false}
+          />
+        );
+      }
+    }
+    return result;
+  }, [tileColorMap]);
+
+  // Zone outlines + name labels
+  const zoneOverlays = useMemo(() => {
+    return zones.map((zone) => {
+      const { gx, gy, gw, gh } = zoneToGrid(zone);
+      const color = ZONE_ACCENT_COLORS[zone.type] ?? '#5B5BD6';
+
+      const T = toIso(gx, gy);
+      const R = toIso(gx + gw, gy);
+      const B = toIso(gx + gw, gy + gh);
+      const L = toIso(gx, gy + gh);
+
+      // Label sits above the top edge midpoint
+      const mid = toIso(gx + gw / 2, gy);
+      const LW = 110, LH = 22;
+      const lx = mid.sx - LW / 2;
+      const ly = mid.sy - LH - 10;
+
+      return (
+        <Group key={zone.id} listening={false}>
+          {/* Zone boundary parallelogram */}
+          <Line
+            points={[T.sx, T.sy, R.sx, R.sy, B.sx, B.sy, L.sx, L.sy]}
+            closed
+            fill="transparent"
+            stroke={color}
+            strokeWidth={3}
+          />
+          {/* Label background */}
+          <Rect
+            x={lx}
+            y={ly}
+            width={LW}
+            height={LH}
+            fill="white"
+            cornerRadius={4}
+            shadowColor="rgba(0,0,0,0.10)"
+            shadowBlur={6}
+            shadowOffsetY={2}
+            shadowEnabled
+          />
+          {/* Label text */}
+          <Text
+            x={lx}
+            y={ly}
+            width={LW}
+            height={LH}
+            text={zone.name}
+            fontSize={12}
+            fontFamily="'DM Sans', sans-serif"
+            fill="#0A0A0B"
+            align="center"
+            verticalAlign="middle"
+          />
+        </Group>
+      );
     });
-    return counts;
-  }, [store.positions]);
+  }, [zones]);
+
+  // ─── Camera event handlers ────────────────────────────────────────────────
+
+  const handleWheel = useCallback((e: Konva.KonvaEventObject<WheelEvent>) => {
+    e.evt.preventDefault();
+    const stage = stageRef.current;
+    if (!stage) return;
+
+    const oldScale = stage.scaleX();
+    const pointer = stage.getPointerPosition();
+    if (!pointer) return;
+
+    const anchor = {
+      x: (pointer.x - stage.x()) / oldScale,
+      y: (pointer.y - stage.y()) / oldScale,
+    };
+
+    const dir = e.evt.deltaY < 0 ? 1 : -1;
+    const factor = 1.08;
+    const newScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, oldScale * (dir > 0 ? factor : 1 / factor)));
+    const newPos = {
+      x: pointer.x - anchor.x * newScale,
+      y: pointer.y - anchor.y * newScale,
+    };
+
+    stage.scaleX(newScale);
+    stage.scaleY(newScale);
+    stage.x(newPos.x);
+    stage.y(newPos.y);
+    stage.batchDraw();
+    setCamera({ x: newPos.x, y: newPos.y, scale: newScale });
+  }, [setCamera]);
+
+  const handleDragStart = useCallback(() => {
+    const container = stageRef.current?.container();
+    if (container) container.style.cursor = 'grabbing';
+  }, []);
+
+  const handleDragEnd = useCallback(() => {
+    const stage = stageRef.current;
+    if (!stage) return;
+    const container = stage.container();
+    if (container) container.style.cursor = 'grab';
+    setCamera({ x: stage.x(), y: stage.y(), scale: stage.scaleX() });
+  }, [setCamera]);
+
+  const handleDblClick = useCallback(() => {
+    const cam = computeFitCamera(zones, dimensions.width, dimensions.height);
+    setCamera(cam);
+  }, [zones, dimensions, setCamera]);
 
   return (
     <div
       ref={containerRef}
-      className={cn('canvas-floor relative h-full w-full overflow-hidden')}
+      className="relative h-full w-full overflow-hidden"
+      style={{ background: 'var(--bg-secondary)', cursor: 'grab' }}
     >
-      <Stage width={dimensions.width} height={dimensions.height}>
-        {/* Layer 1 — Zones (static geometry, memoized) */}
-        <Layer listening={true}>
-          {store.zones.map((zone) => (
-            <ZoneShape
-              key={zone.id}
-              zone={zone}
-              isSelected={store.selectedZoneId === zone.id}
-              isBooked={bookedZoneIds?.has(zone.id) ?? false}
-              occupantCount={occupantCounts.get(zone.id) ?? 0}
-              onZoneEnter={onZoneEnter}
-              onSelect={(id) => store.setSelectedZone(id)}
-              onHoverStart={handleHoverStart}
-              onHoverMove={handleHoverMove}
-              onHoverEnd={handleHoverEnd}
-            />
-          ))}
+      <Stage
+        ref={stageRef}
+        width={dimensions.width}
+        height={dimensions.height}
+        draggable
+        onWheel={handleWheel}
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+        onDblClick={handleDblClick}
+      >
+        {/* Layer 1 — floor tiles */}
+        <Layer listening={false}>
+          {tiles}
         </Layer>
 
-        {/* Layer 2 — Avatars (dynamic, real-time positions) */}
-        <Layer>
-          {positionsList.map((pos) => (
-            <AvatarCircle
-              key={pos.user_id}
-              position={pos}
-              profile={store.profiles.get(pos.user_id)}
-              isCurrent={pos.user_id === currentUserId}
-              isSpeaking={speakingUserIds.has(pos.user_id)}
-              scheduleStatus={workSchedules?.get(pos.user_id)}
-              onDragEnd={
-                pos.user_id === currentUserId
-                  ? handleAvatarDrop
-                  : () => undefined
-              }
-              onClick={
-                pos.user_id !== currentUserId && onAvatarClick
-                  ? () => onAvatarClick(pos.user_id)
-                  : undefined
-              }
-            />
-          ))}
+        {/* Layer 2 — zone boundaries + labels */}
+        <Layer listening={false}>
+          {zoneOverlays}
         </Layer>
-
-        {/* Layer 3 — Decorations (static, non-interactive) */}
-        {decorations && decorations.length > 0 && (
-          <Layer listening={false}>
-            {decorations.map((d) => (
-              <Text
-                key={d.id}
-                x={d.x}
-                y={d.y}
-                text={d.emoji}
-                fontSize={d.size}
-                listening={false}
-              />
-            ))}
-          </Layer>
-        )}
       </Stage>
-
-      {/* Vignette overlay */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0"
-        style={{
-          background: 'radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,0.5) 100%)',
-        }}
-      />
-
-      {/* DOM-layer tooltip — rendered outside the Stage so it's above everything */}
-      <ZoneTooltip
-        tooltip={tooltip}
-        zones={store.zones}
-        profiles={store.profiles}
-        positions={store.positions}
-      />
     </div>
   );
 }

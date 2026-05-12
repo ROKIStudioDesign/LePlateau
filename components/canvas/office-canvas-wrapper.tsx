@@ -20,10 +20,11 @@ const OfficeCanvasDynamic = dynamic<OfficeCanvasProps>(
   {
     ssr: false,
     loading: () => (
-      <div className="flex h-full w-full items-center justify-center bg-[#0A0A0F]">
+      <div className="flex h-full w-full items-center justify-center" style={{ background: 'var(--bg-secondary)' }}>
         <div className="flex flex-col items-center gap-3">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#1E1E2E] border-t-[#6366F1]" />
-          <p className="text-xs text-slate-500">Chargement du plateau…</p>
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-t-transparent"
+            style={{ borderColor: 'var(--border-secondary)', borderTopColor: 'var(--accent-primary)' }} />
+          <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Chargement du plateau…</p>
         </div>
       </div>
     ),

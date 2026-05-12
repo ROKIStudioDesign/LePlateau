@@ -9,6 +9,12 @@ export interface KnockNotification {
   timestamp: number;
 }
 
+export interface Camera {
+  x: number;
+  y: number;
+  scale: number;
+}
+
 interface OfficeState {
   positions: Map<string, AvatarPosition>;
   profiles: Map<string, Profile>;
@@ -17,6 +23,7 @@ interface OfficeState {
   selectedZoneId: string | null;
   rightPanelOpen: boolean;
   knockNotifications: KnockNotification[];
+  camera: Camera;
 
   setPositions: (positions: AvatarPosition[]) => void;
   updatePosition: (position: AvatarPosition) => void;
@@ -28,6 +35,7 @@ interface OfficeState {
   toggleRightPanel: () => void;
   addKnock: (knock: KnockNotification) => void;
   dismissKnock: (id: string) => void;
+  setCamera: (camera: Camera) => void;
 }
 
 export const useOfficeStore = create<OfficeState>()(
@@ -39,6 +47,7 @@ export const useOfficeStore = create<OfficeState>()(
     selectedZoneId: null,
     rightPanelOpen: true,
     knockNotifications: [],
+    camera: { x: 0, y: 0, scale: 1 },
 
     setPositions: (positions) =>
       set({
@@ -81,5 +90,7 @@ export const useOfficeStore = create<OfficeState>()(
       set((state) => ({
         knockNotifications: state.knockNotifications.filter((k) => k.id !== id),
       })),
+
+    setCamera: (camera) => set({ camera }),
   }))
 );
